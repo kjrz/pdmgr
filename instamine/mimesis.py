@@ -9,26 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 conf = ConfigParser.RawConfigParser()
 conf.read('../instamine.conf')
 
-LIMIT = conf.getint('algorithm', 'limit')
-
 LOG = logging.getLogger(conf.get('log', 'name'))
-
-
-def init_db(db_path):
-    engine = create_engine('sqlite:///' + db_path)
-    Base.metadata.create_all(engine)
-
-
-def drop_all(db_path):
-    engine = create_engine('sqlite:///' + db_path)
-    Base.metadata.drop_all(engine)
-
-
-def get_session(db_path):
-    engine = create_engine('sqlite:///' + db_path)
-    Session = sessionmaker(bind=engine)
-    return Session()
-
 
 Base = declarative_base()
 
@@ -64,6 +45,20 @@ class Celeb(Base):
 class Private(Base):
     __tablename__ = 'private'
     id = Column(Integer, ForeignKey('user.id'), primary_key=True)
+
+
+class DBA:
+    def init_db(self):
+        engine = create_engine('sqlite:///' + self.db_path)
+        Base.metadata.create_all(engine)
+
+
+    def drop_all(self):
+        engine = create_engine('sqlite:///' + self.db_path)
+        Base.metadata.drop_all(engine)
+
+    def __init__(self, db_path):
+        self.db_path = db_path
 
 
 class Mimesis:
@@ -128,11 +123,6 @@ class Mimesis:
             .limit(n) \
             .all()
 
-    def enough_is_enough(self):
-        how_many = self.session.query(User).count()
-        LOG.info("got {}".format(how_many))
-        return how_many >= LIMIT
-
     def commit(self):
         self.session.commit()
 
@@ -140,7 +130,10 @@ class Mimesis:
         self.session.close()
 
     def __init__(self, db_path):
-        self.session = get_session(db_path)
+        engine = create_engine('sqlite:///' + db_path)
+        Session = sessionmaker(bind=engine)
+        self.session = Session()
+
 
 class Stats:
     def users(self):
@@ -155,7 +148,7 @@ class Stats:
     def privates(self):
         return self.session.query(Private).count()
 
-    def in_queue(self):
+    def queued(self):
         stmt = self.session.query(
             Following.followee_id, func.count('*').label('followers_count')). \
             group_by(Following.followee_id). \
@@ -171,14 +164,19 @@ class Stats:
             .count()
 
     def log(self):
+        users = self.users()
+        celebs = self.celebs()
+        privates = self.privates()
+        queued = self.queued()
+        processed = users - celebs - privates - queued
         LOG.info("-----------------------")
         LOG.info("        stats")
         LOG.info("-----------------------")
-        LOG.info("users \t = {}".format(self.users()))
-        LOG.info("follows \t = {}".format(self.follows()))
-        LOG.info("celebs \t = {}".format(self.celebs()))
-        LOG.info("privates \t = {}".format(self.privates()))
-        LOG.info("in queue \t = {}".format(self.in_queue()))
+        LOG.info("users \t = {}".format(users))
+        LOG.info("celebs \t = {}".format(celebs))
+        LOG.info("privates \t = {}".format(privates))
+        LOG.info("queued \t = {}".format(queued))
+        LOG.info("processed \t = {}".format(processed))
         LOG.info("-----------------------")
         return self
 
@@ -186,4 +184,6 @@ class Stats:
         self.session.close()
 
     def __init__(self, db_path):
-        self.session = get_session(db_path)
+        engine = create_engine('sqlite:///' + db_path)
+        Session = sessionmaker(bind=engine)
+        self.session = Session()
