@@ -115,13 +115,15 @@ class Session:
 
     def been_an_hour(self):
         been_sec = (datetime.now() - self.hour_start).seconds
-        LOG.info("been {} minutes".format(been_sec / 60))
+        LOG.info("been {} minutes this hour".format(been_sec / 60))
+        LOG.info("fired {} shots so far".format(self.hour_shots))
         return been_sec > HOUR_SEC
 
     def new_hour(self):
         self.hour_shots = 0
         self.hour_start = datetime.now()
-        LOG.info("new hour from {}".format(self.hour_start.time()))
+        LOG.info("new hour from {}".format(
+            self.hour_start.time().strftime("%H:%M")))
 
     def __init__(self):
         self.api = InstagramAPI(access_token=ACCESS_TOKEN)
