@@ -4,6 +4,8 @@ from logging.handlers import RotatingFileHandler
 import time
 from datetime import datetime, timedelta
 
+from instagram import InstagramAPIError
+
 from mimesis import Mimesis, Stats
 from instapi import Session, UserPrivateException
 
@@ -30,13 +32,13 @@ LOG.setLevel(conf.get('log', 'level'))
 LOG.addHandler(handler)
 
 
+# TODO: -o --open, -s --starting, -c --closed
+
 class UsersToAttendTo:
     QUEUE_LEN = int(conf.get('algorithm', 'queue'))
 
     def next(self):
-        ans = self.queue[0]
-        del self.queue[0]
-        return ans
+        return self.queue.pop(0)
 
     def reload(self):
         self.queue = self.db.the_unvisited(self.QUEUE_LEN)
@@ -46,31 +48,30 @@ class UsersToAttendTo:
         self.queue = []
         self.reload()
 
-# TODO: fresh start
-# init_db(db_path)
-# db = Mimesis(db_path)
-# instagram = Session()
-# username = "kasiaskorzynska"
-# id = instagram.search(username).id
-# user = db.add_user(id=id, username=username)
-# Mine().dig(user)
-# db.commit()
-# also different clip size
 
 class Mine:
     def work(self):
-        self.round_start = datetime.now()
+        while True:
+            self.dig_safe()
+            self.relax()
 
+    def dig_safe(self):
+        try:
+            self.dig()
+        except InstagramAPIError as e:
+            LOG.warn("Instagram API exception")
+            LOG.exception(e)
+
+    def dig(self):
+        self.round_start = datetime.now()
         while self.api.ammo_left() > USER_AMMO:
             follower, followed_by = self.queue.next()
-            LOG.info("next up ({}) ->\tinstagram.com/{}".format(
+            LOG.info("next up ({}) -> instagram.com/{}".format(
                 followed_by, follower.username))
-            self.dig(follower)
-
+            self.attend_to(follower)
         self.db.commit()
-        self.relax()
 
-    def dig(self, follower):
+    def attend_to(self, follower):
         if self.celeb_or_private(follower):
             return
 
@@ -135,7 +136,6 @@ class Mine:
             time.sleep(TIC)
             now = datetime.now()
         self.api.reload()
-        self.work()
 
     def set_time(self):
         return self.round_start + timedelta(0, CYCLE)
@@ -152,7 +152,12 @@ class Mine:
         self.queue = UsersToAttendTo(self.db)
         self.api = Session()
 
+
 try:
     Mine().work()
+except IndexError as e:
+    LOG.warn("Queue probably empty")
+    LOG.exception(e)
 except Exception as e:
+    LOG.warn("Something else")
     LOG.exception(e)
