@@ -52,7 +52,6 @@ class DBA:
         engine = create_engine('sqlite:///' + self.db_path)
         Base.metadata.create_all(engine)
 
-
     def drop_all(self):
         engine = create_engine('sqlite:///' + self.db_path)
         Base.metadata.drop_all(engine)
@@ -94,7 +93,8 @@ class Mimesis:
         self.session.add(celeb)
         return celeb
 
-    def set_follows(self, follower, followee):
+    @staticmethod
+    def set_follows(follower, followee):
         LOG.debug("adding relationship \"{}\" -> \"{}\"".format(
             follower.username,
             followee.username))
@@ -113,11 +113,11 @@ class Mimesis:
             group_by(Following.followee_id). \
             subquery()
         return self.session.query(User, stmt.c.followers_count) \
-            .filter(User.follows == None) \
+            .filter(User.follows is None) \
             .outerjoin((Celeb, Celeb.id == User.id)) \
-            .filter(Celeb.id == None) \
+            .filter(Celeb.id is None) \
             .outerjoin((Private, Private.id == User.id)) \
-            .filter(Private.id == None) \
+            .filter(Private.id is None) \
             .outerjoin(stmt, User.id == stmt.c.followee_id) \
             .order_by(stmt.c.followers_count.desc()) \
             .limit(n) \
@@ -131,8 +131,8 @@ class Mimesis:
 
     def __init__(self, db_path):
         engine = create_engine('sqlite:///' + db_path)
-        Session = sessionmaker(bind=engine)
-        self.session = Session()
+        session = sessionmaker(bind=engine)
+        self.session = session()
 
 
 class Stats:
@@ -154,11 +154,11 @@ class Stats:
             group_by(Following.followee_id). \
             subquery()
         return self.session.query(User, stmt.c.followers_count) \
-            .filter(User.follows == None) \
+            .filter(User.follows is None) \
             .outerjoin((Celeb, Celeb.id == User.id)) \
-            .filter(Celeb.id == None) \
+            .filter(Celeb.id is None) \
             .outerjoin((Private, Private.id == User.id)) \
-            .filter(Private.id == None) \
+            .filter(Private.id is None) \
             .outerjoin(stmt, User.id == stmt.c.followee_id) \
             .order_by(stmt.c.followers_count.desc()) \
             .count()
@@ -185,5 +185,5 @@ class Stats:
 
     def __init__(self, db_path):
         engine = create_engine('sqlite:///' + db_path)
-        Session = sessionmaker(bind=engine)
-        self.session = Session()
+        session = sessionmaker(bind=engine)
+        self.session = session()
