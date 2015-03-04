@@ -9,12 +9,11 @@ from instagram.bind import InstagramAPIError
 conf = ConfigParser.RawConfigParser()
 conf.read('../instamine.conf')
 
+LOG = logging.getLogger(conf.get('log', 'name'))
+
 ACCESS_TOKEN = conf.get('api', 'access_token')
-HOUR_SEC = 3600
 HOUR_MAX = int(conf.get('api', 'hour_max'))
 CLIP = int(conf.get('algorithm', 'clip'))
-
-LOG = logging.getLogger(conf.get('log', 'name'))
 
 
 class OneHourApiCallsLimitReached(Exception):
@@ -117,7 +116,7 @@ class Session:
         been_sec = (datetime.now() - self.hour_start).seconds
         LOG.info("been {} minutes this hour".format(been_sec / 60))
         LOG.info("fired {} shots so far".format(self.hour_shots))
-        return been_sec > HOUR_SEC
+        return been_sec > 3600
 
     def new_hour(self):
         self.hour_shots = 0

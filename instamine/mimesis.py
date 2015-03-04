@@ -37,27 +37,24 @@ class User(Base):
     )
 
 
-class Celeb(Base):
-    __tablename__ = 'celeb'
-    id = Column(Integer, ForeignKey('user.id'), primary_key=True)
-
-
 class Private(Base):
     __tablename__ = 'private'
     id = Column(Integer, ForeignKey('user.id'), primary_key=True)
 
 
-class DBA:
-    def init_db(self):
-        engine = create_engine('sqlite:///' + self.db_path)
-        Base.metadata.create_all(engine)
+class Celeb(Base):
+    __tablename__ = 'celeb'
+    id = Column(Integer, ForeignKey('user.id'), primary_key=True)
 
-    def drop_all(self):
-        engine = create_engine('sqlite:///' + self.db_path)
-        Base.metadata.drop_all(engine)
 
-    def __init__(self, db_path):
-        self.db_path = db_path
+class Maniac(Base):
+    __tablename__ = 'maniac'
+    id = Column(Integer, ForeignKey('user.id'), primary_key=True)
+
+
+class Inactive(Base):
+    __tablename__ = 'inactive'
+    id = Column(Integer, ForeignKey('user.id'), primary_key=True)
 
 
 class Mimesis:
@@ -93,6 +90,18 @@ class Mimesis:
         self.session.add(celeb)
         return celeb
 
+    def add_maniac(self, id):
+        LOG.debug('adding maniac {}'.format(id))
+        maniac = Maniac(id=id)
+        self.session.add(maniac)
+        return maniac
+
+    def add_inactive(self, id):
+        LOG.debug('adding inactive {}'.format(id))
+        inactive = Inactive(id=id)
+        self.session.add(inactive)
+        return inactive
+
     @staticmethod
     def set_follows(follower, followee):
         LOG.debug("adding relationship \"{}\" -> \"{}\"".format(
@@ -113,11 +122,15 @@ class Mimesis:
             group_by(Following.followee_id). \
             subquery()
         return self.session.query(User, stmt.c.followers_count) \
-            .filter(User.follows is None) \
-            .outerjoin((Celeb, Celeb.id == User.id)) \
-            .filter(Celeb.id is None) \
+            .filter(User.follows == None) \
             .outerjoin((Private, Private.id == User.id)) \
-            .filter(Private.id is None) \
+            .filter(Private.id == None) \
+            .outerjoin((Celeb, Celeb.id == User.id)) \
+            .filter(Celeb.id == None) \
+            .outerjoin((Maniac, Maniac.id == User.id)) \
+            .filter(Maniac.id == None) \
+            .outerjoin((Inactive, Inactive.id == User.id)) \
+            .filter(Inactive.id == None) \
             .outerjoin(stmt, User.id == stmt.c.followee_id) \
             .order_by(stmt.c.followers_count.desc()) \
             .limit(n) \
@@ -129,8 +142,14 @@ class Mimesis:
     def close(self):
         self.session.close()
 
+    @staticmethod
+    def init_db(engine):
+        if not engine.has_table("user"):
+            Base.metadata.create_all(engine)
+
     def __init__(self, db_path):
         engine = create_engine('sqlite:///' + db_path)
+        self.init_db(engine)
         session = sessionmaker(bind=engine)
         self.session = session()
 
@@ -142,11 +161,17 @@ class Stats:
     def follows(self):
         return self.session.query(Following).count()
 
+    def privates(self):
+        return self.session.query(Private).count()
+
     def celebs(self):
         return self.session.query(Celeb).count()
 
-    def privates(self):
-        return self.session.query(Private).count()
+    def maniacs(self):
+        return self.session.query(Maniac).count()
+
+    def inactive(self):
+        return self.session.query(Inactive).count()
 
     def queued(self):
         stmt = self.session.query(
@@ -154,11 +179,15 @@ class Stats:
             group_by(Following.followee_id). \
             subquery()
         return self.session.query(User, stmt.c.followers_count) \
-            .filter(User.follows is None) \
-            .outerjoin((Celeb, Celeb.id == User.id)) \
-            .filter(Celeb.id is None) \
+            .filter(User.follows == None) \
             .outerjoin((Private, Private.id == User.id)) \
-            .filter(Private.id is None) \
+            .filter(Private.id == None) \
+            .outerjoin((Celeb, Celeb.id == User.id)) \
+            .filter(Celeb.id == None) \
+            .outerjoin((Maniac, Maniac.id == User.id)) \
+            .filter(Maniac.id == None) \
+            .outerjoin((Inactive, Inactive.id == User.id)) \
+            .filter(Inactive.id == None) \
             .outerjoin(stmt, User.id == stmt.c.followee_id) \
             .order_by(stmt.c.followers_count.desc()) \
             .count()
@@ -167,16 +196,22 @@ class Stats:
         users = self.users()
         celebs = self.celebs()
         privates = self.privates()
+        maniacs = self.maniacs()
+        inactive = self.inactive()
         queued = self.queued()
-        processed = users - celebs - privates - queued
+        regular = users - privates - celebs - maniacs - inactive - queued
+        processed = users - queued
         LOG.info("-----------------------")
         LOG.info("        stats")
         LOG.info("-----------------------")
         LOG.info("users \t = {}".format(users))
-        LOG.info("celebs \t = {}".format(celebs))
-        LOG.info("privates \t = {}".format(privates))
-        LOG.info("queued \t = {}".format(queued))
         LOG.info("processed \t = {}".format(processed))
+        LOG.info("queued \t = {}".format(queued))
+        LOG.info("regular \t = {}".format(regular))
+        LOG.info("privates \t = {}".format(privates))
+        LOG.info("celebs \t = {}".format(celebs))
+        LOG.info("maniacs \t = {}".format(maniacs))
+        LOG.info("inactive \t = {}".format(inactive))
         LOG.info("-----------------------")
         return self
 
