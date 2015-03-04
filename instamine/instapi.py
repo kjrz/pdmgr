@@ -53,6 +53,17 @@ class Followees:
         return user.id, user.username
 
 
+class UserInfo:
+    def followers_count(self):
+        return self.info.get('counts').get('followed_by')
+
+    def followees_count(self):
+        return self.info.get('counts').get('follows')
+
+    def __init__(self, response):
+        self.info = vars(response)
+
+
 class Session:
     def search(self, username):
         LOG.debug('issue user search: {}'.format(username))
@@ -64,11 +75,7 @@ class Session:
         LOG.debug("issue user info: {}".format(id))
         response = self.risk_private(self.api.user, id)
         self.shoot()
-        return vars(response)
-
-    def popularity(self, id):
-        LOG.debug("issue popularity: {}".format(id))
-        return self.info(id).get('counts').get('followed_by')
+        return UserInfo(response)
 
     def followees(self, id):
         LOG.debug("issue followees: {}".format(id))

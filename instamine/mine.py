@@ -5,9 +5,8 @@ import time
 from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
-from sqlalchemy.exc import OperationalError
 
-from mimesis import Mimesis, Stats
+from mimesis import Mimesis, Stats, User
 from instapi import Session, UserPrivateException
 
 
@@ -92,18 +91,10 @@ class Mine:
         self.db.commit()
 
     def attend_to(self, follower):
-        if self.celeb_or_private(follower):
+        breed = self.check_breed(follower)
+        if breed is not User.Breed.REGULAR:
             return
-
         followees = self.api.followees(follower.id)
-
-        LOG.info("followees: {}".format(followees.size()))
-
-        if self.maniac(follower, followees):
-            return
-
-        if self.inactive(follower, followees):
-            return
 
         for id, username in followees:
             followee = self.db.user_known(id)
@@ -115,55 +106,57 @@ class Mine:
 
         LOG.info("<done>")
 
-    def celeb_or_private(self, follower):
+    def check_breed(self, follower):
         try:
-            popularity = self.api.popularity(follower.id)
-            LOG.info("followers: {}".format(popularity))
+            info = self.api.info(follower.id)
         except UserPrivateException:
             LOG.info("<private>")
-            self.db.add_private(follower.id)
-            return True
+            self.db.set_private(follower)
+            return User.Breed.PRIVATE
 
-        if popularity >= CELEB_THRESHOLD:
+        followed_by = info.followers_count()
+        self.db.set_followers(follower, followed_by)
+        LOG.info("followed by: {}".format(followed_by))
+
+        follows = info.followees_count()
+        self.db.set_followees(follower, follows)
+        LOG.info("follows: {}".format(follows))
+
+        if followed_by >= CELEB_THRESHOLD:
             LOG.info("<celeb>")
-            self.db.add_celeb(follower.id)
-            return True
+            self.db.set_celeb(follower)
+            return User.Breed.CELEB
 
-        return False
-
-    def maniac(self, follower, followees):
-        if len(followees) > MANIAC_THRESHOLD:
+        if follows >= MANIAC_THRESHOLD:
             LOG.info("<maniac>")
-            self.db.add_maniac(follower.id)
-            return True
-        else:
-            return False
+            self.db.set_maniac(follower)
+            return User.Breed.MANIAC
 
-    def inactive(self, follower, followees):
-        if len(followees) <= INACTIVE_THRESHOLD:
+        if follows <= INACTIVE_THRESHOLD:
             LOG.info("<inactive>")
-            self.db.add_inactive(follower.id)
-            return True
-        else:
-            return False
+            self.db.set_inactive(follower)
+            return User.Breed.INACTIVE
+
+        self.db.set_regular(follower)
+        return User.Breed.REGULAR
 
     def relax(self):
         stop = self.set_time()
         self.reload()
         now = datetime.now()
         while now < stop:
-            LOG.info("over {} min left".format((stop - now).seconds / 60))
+            LOG.info("under {} min left".format((stop - now).seconds / 60 + 1))
             time.sleep(TIC)
             now = datetime.now()
         self.api.reload()
+        LOG.info("============start over==============")
 
     def set_time(self):
         return self.round_start + timedelta(0, CYCLE)
 
     def reload(self):
-        LOG.info("reload...")
+        LOG.info("==============reload================")
         self.queue.reload()
-        LOG.info("...reload done")
         LOG.info("mode: {}".format("open" if not self.users_limit_reached else "closed"))
         LOG.info("cycle = {}".format(CYCLE))
         self.check_stats()
@@ -186,12 +179,12 @@ class Mine:
             return
         LOG.info("origin: {}".format(ORIGIN))
         id = self.api.search(ORIGIN).id
-        LOG.info("id: {}".format(id))
         user = self.db.add_user(id=id, username=ORIGIN)
         self.attend_to(user)
         self.db.commit()
 
     def __init__(self):
+        LOG.info("===============start=================")
         self.api = Session()
         self.db = Mimesis(DB_PATH)
         self.users_limit_reached = False
