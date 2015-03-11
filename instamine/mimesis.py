@@ -129,10 +129,11 @@ class Mimesis:
 
     @staticmethod
     def init_db(engine):
-        if not engine.has_table("user"):
+        LOG.info('init db')
+        if not engine.has_table('user'):
             Base.metadata.create_all(engine)
 
-    def __init__(self, db_path):
+    def __init__(self, db_path=conf.get('db', 'path')):
         engine = create_engine('sqlite:///' + db_path)
         self.init_db(engine)
         session = sessionmaker(bind=engine)
