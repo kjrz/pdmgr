@@ -66,43 +66,60 @@ class TestQueries(unittest.TestCase):
         a = db.add_user(1, 'a_021C')
         b = db.add_user(2, 'b_021C')
         c = db.add_user(3, 'c_021C')
-        db.commit()
+        db.set_follows(a, c)
+        db.set_follows(c, b)
 
     @classmethod
     def zero_two_one_d(cls, db):
-        a = db.add_user(4, 'a_021C')
-        b = db.add_user(5, 'b_021C')
-        c = db.add_user(6, 'c_021C')
+        a = db.add_user(4, 'a_021D')
+        b = db.add_user(5, 'b_021D')
+        c = db.add_user(6, 'c_021D')
+        db.set_follows(c, a)
+        db.set_follows(c, b)
 
     @classmethod
     def zero_two_one_u(cls, db):
-        a = db.add_user(7, 'a_021C')
-        b = db.add_user(8, 'b_021C')
-        c = db.add_user(9, 'c_021C')
+        a = db.add_user(7, 'a_021U')
+        b = db.add_user(8, 'b_021U')
+        c = db.add_user(9, 'c_021U')
+        db.set_follows(a, c)
+        db.set_follows(b, c)
 
     @classmethod
     def zero_three_zero_c(cls, db):
-        a = db.add_user(10, 'a_021C')
-        b = db.add_user(11, 'b_021C')
-        c = db.add_user(12, 'c_021C')
+        a = db.add_user(10, 'a_030C')
+        b = db.add_user(11, 'b_030C')
+        c = db.add_user(12, 'c_030C')
+        db.set_follows(a, b)
+        db.set_follows(b, c)
+        db.set_follows(c, a)
 
     @classmethod
     def zero_three_zero_t(cls, db):
-        a = db.add_user(13, 'a_021C')
-        b = db.add_user(14, 'b_021C')
-        c = db.add_user(15, 'c_021C')
+        a = db.add_user(13, 'a_030T')
+        b = db.add_user(14, 'b_030T')
+        c = db.add_user(15, 'c_030T')
+        db.set_follows(a, c)
+        db.set_follows(a, b)
+        db.set_follows(b, c)
 
     @classmethod
     def one_one_one_d(cls, db):
-        a = db.add_user(16, 'a_021C')
-        b = db.add_user(17, 'b_021C')
-        c = db.add_user(18, 'c_021C')
+        a = db.add_user(16, 'a_111D')
+        b = db.add_user(17, 'b_111D')
+        c = db.add_user(18, 'c_111D')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(c, b)
 
     @classmethod
     def one_one_one_u(cls, db):
-        a = db.add_user(19, 'a_021C')
-        b = db.add_user(20, 'b_021C')
-        c = db.add_user(21, 'c_021C')
+        a = db.add_user(19, 'a_111U')
+        b = db.add_user(20, 'b_111U')
+        c = db.add_user(21, 'c_111U')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(b, c)
 
     @classmethod
     def one_two_zero_c(cls, db):
@@ -115,23 +132,7 @@ class TestQueries(unittest.TestCase):
         db.set_follows(c, b)
 
     def test_one_two_zero_c_query(self):
-        conn = sqlite3.connect(conf.get('db', 'path'))
-        c = conn.cursor()
-        rows = c.execute('''SELECT ab.follower_id AS a_id,
-                                   ab.followee_id AS b_id,
-                                   ac.followee_id AS c_id
-                            FROM following AS ab
-                            JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                AND ab.follower_id = ba.followee_id
-                            JOIN following AS ac ON ab.follower_id = ac.follower_id
-                 LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
-                                                AND ac.follower_id = ca.followee_id
-                            JOIN following AS cb ON ac.followee_id = cb.follower_id
-                                                AND ab.followee_id = cb.followee_id
-                 LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
-                                                AND cb.follower_id = bc.followee_id
-                            WHERE ca.follower_id IS NULL
-                            AND bc.follower_id IS NULL''').fetchall()
+        rows = self.run_select('120C')
         self.assertListEqual(rows, [(22, 23, 24)])
 
     @classmethod
@@ -145,24 +146,7 @@ class TestQueries(unittest.TestCase):
         db.set_follows(c, b)
 
     def test_one_two_zero_d_query(self):
-        conn = sqlite3.connect(conf.get('db', 'path'))
-        c = conn.cursor()
-        rows = c.execute('''SELECT ab.follower_id AS a_id,
-                                   ab.followee_id AS b_id,
-                                   ca.follower_id AS c_id
-                            FROM following AS ab
-                            JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                AND ab.follower_id = ba.followee_id
-                            JOIN following AS ca ON ab.follower_id = ca.followee_id
-                 LEFT OUTER JOIN following AS ac ON ca.follower_id = ac.followee_id
-                                                AND ca.followee_id = ac.follower_id
-                            JOIN following AS cb ON ca.follower_id = cb.follower_id
-                                                AND ab.followee_id = cb.followee_id
-                 LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
-                                                AND cb.follower_id = bc.followee_id
-                            WHERE ab.follower_id < ba.follower_id
-                              AND ac.follower_id IS NULL
-                              AND bc.follower_id IS NULL''').fetchall()
+        rows = self.run_select('120D')
         self.assertListEqual(rows, [(25, 26, 27)])
 
     @classmethod
@@ -176,24 +160,7 @@ class TestQueries(unittest.TestCase):
         db.set_follows(b, c)
 
     def test_one_two_zero_u_query(self):
-        conn = sqlite3.connect(conf.get('db', 'path'))
-        c = conn.cursor()
-        rows = c.execute('''SELECT ab.follower_id AS a_id,
-                                   ab.followee_id AS b_id,
-                                   ac.followee_id AS c_id
-                            FROM following AS ab
-                            JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                AND ab.follower_id = ba.followee_id
-                            JOIN following AS ac ON ab.follower_id = ac.follower_id
-                 LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
-                                                AND ac.follower_id = ca.followee_id
-                            JOIN following AS bc ON bc.follower_id = ba.follower_id
-                                                AND bc.followee_id = ac.followee_id
-                 LEFT OUTER JOIN following AS cb ON bc.followee_id = cb.follower_id
-                                                AND bc.follower_id = cb.followee_id
-                            WHERE ab.follower_id < ba.follower_id
-                              AND ca.follower_id IS NULL
-                              AND cb.follower_id IS NULL''').fetchall()
+        rows = self.run_select('120U')
         self.assertListEqual(rows, [(28, 29, 30)])
 
     @classmethod
@@ -232,26 +199,7 @@ class TestQueries(unittest.TestCase):
         db.set_follows(c, a)
 
     def test_two_zero_one_query(self):
-        conn = sqlite3.connect(conf.get('db', 'path'))
-        c = conn.cursor()
-        rows = c.execute('''SELECT ab.follower_id AS a_id,
-                                   ba.follower_id AS b_id,
-                                   ca.follower_id AS c_id
-                            FROM following AS ab
-                            JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                AND ab.follower_id = ba.followee_id
-                            JOIN following AS ac ON ab.follower_id = ac.follower_id
-                            JOIN following AS ca ON ac.followee_id = ca.follower_id
-                                                AND ac.follower_id = ca.followee_id
-                 LEFT OUTER JOIN following AS bc ON bc.follower_id = ba.follower_id
-                                                AND bc.followee_id = ca.follower_id
-                            WHERE bc.follower_id IS NULL
-                              AND bc.followee_id IS NULL
-                              AND (   (    ac.follower_id > ba.follower_id
-                                       AND ba.follower_id > ca.follower_id)
-                                   OR (    ac.follower_id < ba.follower_id
-                                           AND ba.follower_id > ca.follower_id))'''
-                         ).fetchall()
+        rows = self.run_select('201')
         self.assertListEqual(rows, [(3100, 3302, 3201),
                                     (3210, 3312, 3111),
                                     (3320, 3222, 3121),
@@ -259,20 +207,43 @@ class TestQueries(unittest.TestCase):
 
     @classmethod
     def two_one_zero(cls, db):
-        a = db.add_user(34, 'a_021C')
-        b = db.add_user(35, 'b_021C')
-        c = db.add_user(36, 'c_021C')
+        # a_id < c_id
+        a = db.add_user(34, 'a_210')
+        b = db.add_user(35, 'b_210')
+        c = db.add_user(36, 'c_210')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(b, c)
+        db.set_follows(c, b)
+        db.set_follows(a, c)
+
+    def test_two_one_zero_query(self):
+        rows = self.run_select('210')
+        self.assertListEqual(rows, [(34, 35, 36)])
 
     @classmethod
     def three_zero_zero(cls, db):
         a = db.add_user(37, 'a_021C')
         b = db.add_user(38, 'b_021C')
         c = db.add_user(39, 'c_021C')
-        # do not test
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(b, c)
+        db.set_follows(c, b)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
 
     @classmethod
     def tearDownClass(cls):
         shutil.copyfile(PROD_CONF_PATH, CONF_PATH)
+
+    @staticmethod
+    def run_select(s):
+        conn = sqlite3.connect(conf.get('db', 'path'))
+        c = conn.cursor()
+        c.execute(open('sql/triads/' + s + '.sql').read())
+        rows = c.fetchall()
+        return rows
 
 
 if __name__ == '__main__':
