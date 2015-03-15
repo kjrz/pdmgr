@@ -94,6 +94,10 @@ class TestQueries(unittest.TestCase):
         db.set_follows(b, c)
         db.set_follows(c, a)
 
+    def test_zero_three_zero_c(self):
+        rows = self.run_select('030C')
+        self.assertListEqual(rows, [(10, 11, 12)])
+
     @classmethod
     def zero_three_zero_t(cls, db):
         a = db.add_user(13, 'a_030T')
@@ -102,6 +106,10 @@ class TestQueries(unittest.TestCase):
         db.set_follows(a, c)
         db.set_follows(a, b)
         db.set_follows(b, c)
+
+    def test_zero_three_zero_t(self):
+        rows = self.run_select('030T')
+        self.assertListEqual(rows, [(13, 14, 15)])
 
     @classmethod
     def one_one_one_d(cls, db):
