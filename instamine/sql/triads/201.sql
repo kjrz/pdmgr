@@ -19,4 +19,3 @@ LEFT OUTER JOIN following AS cb ON cb.follower_id = ca.follower_id
                   AND ba.follower_id > ca.follower_id)
                   OR (    ac.follower_id < ba.follower_id
                   AND ba.follower_id > ca.follower_id))
-
