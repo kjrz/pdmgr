@@ -120,18 +120,18 @@ class TestQueries(unittest.TestCase):
         rows = c.execute('''SELECT ab.follower_id AS a_id,
                                    ab.followee_id AS b_id,
                                    ac.followee_id AS c_id
-                                       FROM following AS ab
-                                       JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                           AND ab.follower_id = ba.followee_id
-                                       JOIN following AS ac ON ab.follower_id = ac.follower_id
-                            LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
-                                                           AND ac.follower_id = ca.followee_id
-                                       JOIN following AS cb ON ac.followee_id = cb.follower_id
-                                                           AND ab.followee_id = cb.followee_id
-                            LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
-                                                           AND cb.follower_id = bc.followee_id
+                            FROM following AS ab
+                            JOIN following AS ba ON ab.followee_id = ba.follower_id
+                                                AND ab.follower_id = ba.followee_id
+                            JOIN following AS ac ON ab.follower_id = ac.follower_id
+                 LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
+                                                AND ac.follower_id = ca.followee_id
+                            JOIN following AS cb ON ac.followee_id = cb.follower_id
+                                                AND ab.followee_id = cb.followee_id
+                 LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
+                                                AND cb.follower_id = bc.followee_id
                             WHERE ca.follower_id IS NULL
-                              AND bc.follower_id IS NULL''').fetchall()
+                            AND bc.follower_id IS NULL''').fetchall()
         self.assertListEqual(rows, [(22, 23, 24)])
 
     @classmethod
@@ -150,19 +150,19 @@ class TestQueries(unittest.TestCase):
         rows = c.execute('''SELECT ab.follower_id AS a_id,
                                    ab.followee_id AS b_id,
                                    ca.follower_id AS c_id
-                                   FROM following AS ab
-                                   JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                       AND ab.follower_id = ba.followee_id
-                                   JOIN following AS ca ON ab.follower_id = ca.followee_id
-                        LEFT OUTER JOIN following AS ac ON ca.follower_id = ac.followee_id
-                                                       AND ca.followee_id = ac.follower_id
-                                   JOIN following AS cb ON ca.follower_id = cb.follower_id
-                                                       AND ab.followee_id = cb.followee_id
-                        LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
-                                                       AND cb.follower_id = bc.followee_id
-                        WHERE ab.follower_id < ba.follower_id
-                          AND ac.follower_id IS NULL
-                          AND bc.follower_id IS NULL''').fetchall()
+                            FROM following AS ab
+                            JOIN following AS ba ON ab.followee_id = ba.follower_id
+                                                AND ab.follower_id = ba.followee_id
+                            JOIN following AS ca ON ab.follower_id = ca.followee_id
+                 LEFT OUTER JOIN following AS ac ON ca.follower_id = ac.followee_id
+                                                AND ca.followee_id = ac.follower_id
+                            JOIN following AS cb ON ca.follower_id = cb.follower_id
+                                                AND ab.followee_id = cb.followee_id
+                 LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
+                                                AND cb.follower_id = bc.followee_id
+                            WHERE ab.follower_id < ba.follower_id
+                              AND ac.follower_id IS NULL
+                              AND bc.follower_id IS NULL''').fetchall()
         self.assertListEqual(rows, [(25, 26, 27)])
 
     @classmethod
@@ -181,26 +181,81 @@ class TestQueries(unittest.TestCase):
         rows = c.execute('''SELECT ab.follower_id AS a_id,
                                    ab.followee_id AS b_id,
                                    ac.followee_id AS c_id
-                                   FROM following AS ab
-                                   JOIN following AS ba ON ab.followee_id = ba.follower_id
-                                                       AND ab.follower_id = ba.followee_id
-                                   JOIN following AS ac ON ab.follower_id = ac.follower_id
-                        LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
-                                                       AND ac.follower_id = ca.followee_id
-                                   JOIN following AS bc ON bc.follower_id = ba.follower_id
-                                                       AND bc.followee_id = ac.followee_id
-                        LEFT OUTER JOIN following AS cb ON ca.follower_id = cb.follower_id
-                                                       AND ab.followee_id = cb.followee_id
-                        WHERE ab.follower_id < ba.follower_id
-                          AND ca.follower_id IS NULL
-                          AND cb.follower_id IS NULL''').fetchall()
+                            FROM following AS ab
+                            JOIN following AS ba ON ab.followee_id = ba.follower_id
+                                                AND ab.follower_id = ba.followee_id
+                            JOIN following AS ac ON ab.follower_id = ac.follower_id
+                 LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
+                                                AND ac.follower_id = ca.followee_id
+                            JOIN following AS bc ON bc.follower_id = ba.follower_id
+                                                AND bc.followee_id = ac.followee_id
+                 LEFT OUTER JOIN following AS cb ON bc.followee_id = cb.follower_id
+                                                AND bc.follower_id = cb.followee_id
+                            WHERE ab.follower_id < ba.follower_id
+                              AND ca.follower_id IS NULL
+                              AND cb.follower_id IS NULL''').fetchall()
         self.assertListEqual(rows, [(28, 29, 30)])
 
     @classmethod
     def two_zero_one(cls, db):
-        a = db.add_user(31, 'a_021C')
-        b = db.add_user(32, 'b_021C')
-        c = db.add_user(33, 'c_021C')
+        # a_id < b_id < c_id
+        a = db.add_user(3100, 'a_201')
+        b = db.add_user(3201, 'b_201')
+        c = db.add_user(3302, 'c_201')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
+        # b_id < a_id < c_id
+        a = db.add_user(3210, 'a_201')
+        b = db.add_user(3111, 'b_201')
+        c = db.add_user(3312, 'c_201')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
+        # b_id < c_id < a_id
+        a = db.add_user(3320, 'a_201')
+        b = db.add_user(3121, 'b_201')
+        c = db.add_user(3222, 'c_201')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
+        # c_id < b_id < a_id
+        a = db.add_user(3330, 'a_201')
+        b = db.add_user(3231, 'b_201')
+        c = db.add_user(3132, 'c_201')
+        db.set_follows(a, b)
+        db.set_follows(b, a)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
+
+    def test_two_zero_one_query(self):
+        conn = sqlite3.connect(conf.get('db', 'path'))
+        c = conn.cursor()
+        rows = c.execute('''SELECT ab.follower_id AS a_id,
+                                   ba.follower_id AS b_id,
+                                   ca.follower_id AS c_id
+                            FROM following AS ab
+                            JOIN following AS ba ON ab.followee_id = ba.follower_id
+                                                AND ab.follower_id = ba.followee_id
+                            JOIN following AS ac ON ab.follower_id = ac.follower_id
+                            JOIN following AS ca ON ac.followee_id = ca.follower_id
+                                                AND ac.follower_id = ca.followee_id
+                 LEFT OUTER JOIN following AS bc ON bc.follower_id = ba.follower_id
+                                                AND bc.followee_id = ca.follower_id
+                            WHERE bc.follower_id IS NULL
+                              AND bc.followee_id IS NULL
+                              AND (   (    ac.follower_id > ba.follower_id
+                                       AND ba.follower_id > ca.follower_id)
+                                   OR (    ac.follower_id < ba.follower_id
+                                           AND ba.follower_id > ca.follower_id))'''
+                         ).fetchall()
+        self.assertListEqual(rows, [(3100, 3302, 3201),
+                                    (3210, 3312, 3111),
+                                    (3320, 3222, 3121),
+                                    (3330, 3231, 3132)])
 
     @classmethod
     def two_one_zero(cls, db):
