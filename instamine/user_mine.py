@@ -141,7 +141,7 @@ class Mine:
         return User.Breed.REGULAR
 
     def relax(self):
-        stop = self.set_time()
+        stop = self.round_start + timedelta(0, CYCLE)
         self.reload()
         now = datetime.now()
         while now < stop:
@@ -150,9 +150,6 @@ class Mine:
             now = datetime.now()
         self.api.reload()
         LOG.info("============start over==============")
-
-    def set_time(self):
-        return self.round_start + timedelta(0, CYCLE)
 
     def reload(self):
         LOG.info("==============reload================")
