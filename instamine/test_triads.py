@@ -120,6 +120,10 @@ class TestQueries(unittest.TestCase):
         db.set_follows(b, a)
         db.set_follows(c, b)
 
+    def test_one_one_one_d(self):
+        rows = self.run_select('111D')
+        self.assertListEqual(rows, [(16, 17, 18)])
+
     @classmethod
     def one_one_one_u(cls, db):
         a = db.add_user(19, 'a_111U')
@@ -128,6 +132,10 @@ class TestQueries(unittest.TestCase):
         db.set_follows(a, b)
         db.set_follows(b, a)
         db.set_follows(b, c)
+
+    def test_one_one_one_u(self):
+        rows = self.run_select('111U')
+        self.assertListEqual(rows, [(19, 20, 21)])
 
     @classmethod
     def one_two_zero_c(cls, db):
@@ -215,7 +223,6 @@ class TestQueries(unittest.TestCase):
 
     @classmethod
     def two_one_zero(cls, db):
-        # a_id < c_id
         a = db.add_user(34, 'a_210')
         b = db.add_user(35, 'b_210')
         c = db.add_user(36, 'c_210')
@@ -246,10 +253,10 @@ class TestQueries(unittest.TestCase):
         shutil.copyfile(PROD_CONF_PATH, CONF_PATH)
 
     @staticmethod
-    def run_select(s):
+    def run_select(select):
         conn = sqlite3.connect(conf.get('db', 'path'))
         c = conn.cursor()
-        c.execute(open('sql/triads/' + s + '.sql').read())
+        c.execute(open('sql/triads/' + select + '.sql').read())
         rows = c.fetchall()
         return rows
 
