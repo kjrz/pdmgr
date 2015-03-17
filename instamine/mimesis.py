@@ -140,7 +140,7 @@ class Mimesis:
         self.session = session()
 
 
-class Stats:
+class UserStats:
     def users(self):
         return self.session.query(User).count()
 

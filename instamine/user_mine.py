@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
 
-from mimesis import Mimesis, Stats, User
+from mimesis import Mimesis, UserStats, User
 from instapi import Session, UserPrivateException
 
 
@@ -162,7 +162,7 @@ class Mine:
         self.check_stats()
 
     def check_stats(self):
-        stats = Stats(DB_PATH)
+        stats = UserStats(DB_PATH)
         users_count = stats.users()
         if not self.users_limit_reached:
             self.check_users_limit(users_count)
