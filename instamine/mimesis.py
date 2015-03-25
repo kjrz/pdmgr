@@ -1,8 +1,8 @@
 import ConfigParser
 import logging
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine, and_
+from sqlalchemy.orm import relationship, sessionmaker, aliased
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -46,6 +46,39 @@ class User(Base):
         primaryjoin=(Following.followee_id == id),
         secondaryjoin=(Following.follower_id == id)
     )
+
+
+class Change(Base):
+    __tablename__ = 'change'
+    from_triad_id = Column(Integer, ForeignKey('triad.id'), nullable=False, primary_key=True)
+    # from_triad = relationship('triad', primaryjoin=(Triad.id == from_triad_id))
+    to_triad_id = Column(Integer, ForeignKey('triad.id'), nullable=True, primary_key=True)
+
+
+class Triad(Base):
+    __tablename__ = 'triad'
+    id = Column(Integer, primary_key=True)
+    a_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    b_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    c_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    triad_type = Column(String(4), nullable=False)
+    first_seen = Column(DateTime, default=func.now())
+    # changed_to = relationship(
+    #     'triad', secondary='changes',
+    #     primaryjoin=(Change.from_triad_id == id),
+    #     secondaryjoin=(Change.to_triad_id == id)
+    # )  # TODO: test
+    # changed_from = relationship(
+    #     'triad', secondary='changes',
+    #     primaryjoin=(Change.to_triad_id == id),
+    #     secondaryjoin=(Change.from_triad_id == id)
+    # )  # TODO: test
+
+
+class Effort(Base):
+    __tablename__ = 'effort'
+    id = Column(Integer, primary_key=True)
+    fin = Column(DateTime, default=func.now())
 
 
 class Mimesis:
@@ -121,6 +154,57 @@ class Mimesis:
             .limit(n) \
             .all()
 
+    def dig_triad(self, triad_name):
+        return self.session.execute(open('sql/triads/' + triad_name + '.sql').read())
+
+    def add_triad(self, a_id, b_id, c_id, triad_type):
+        if self.triad_known(a_id, b_id, c_id, triad_type):
+            return
+        LOG.debug("adding triad {}-{}-{}: {}".format(a_id, b_id, c_id, triad_type))
+        triad = Triad(a_id=a_id, b_id=b_id, c_id=c_id, triad_type=triad_type)
+        self.session.add(triad)
+        return triad
+
+    def triad_known(self, a_id, b_id, c_id, triad_type):
+        return self.session.query(Triad) \
+            .filter(Triad.a_id == a_id) \
+            .filter(Triad.b_id == b_id) \
+            .filter(Triad.c_id == c_id) \
+            .filter(Triad.triad_type == triad_type) \
+            .first()
+
+    def the_unstable(self):
+        # TODO: only dig unstable triads
+        return self.session.query(Triad.a_id, Triad.b_id, Triad.c_id) \
+            .outerjoin(Change, Triad.id == Change.from_triad_id) \
+            .filter(Change.from_triad_id == None) \
+            .all()
+
+    def add_change(self, from_triad, to_triad):
+        self.session.add(Change(from_triad_id=from_triad, to_triad_id=to_triad))
+
+    def the_changed(self):
+        LOG.info('digging changes')
+        prev_run = self.session.query(func.max(Effort.fin)).first()[0]
+        LOG.info('previous run: {}'.format(prev_run))
+        from_triad = aliased(Triad)
+        to_triad = aliased(Triad)
+        known_change = aliased(Change)
+        return self.session.query(from_triad.id, to_triad.id) \
+            .join(to_triad, and_(to_triad.a_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id)),
+                                 to_triad.b_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id)),
+                                 to_triad.c_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id))
+                                 )) \
+            .filter(from_triad.first_seen < prev_run) \
+            .filter(to_triad.first_seen > prev_run) \
+            .outerjoin(known_change, known_change.from_triad_id == from_triad.id) \
+            .filter(known_change.from_triad_id == None) \
+            .all()
+
+    def effort_fin(self):
+        record = Effort()
+        self.session.add(record)
+
     def commit(self):
         self.session.commit()
 
@@ -194,6 +278,19 @@ class UserStats:
         LOG.info("inactive \t = {}".format(inactive))
         LOG.info("-----------------------")
         return self
+
+    def close(self):
+        self.session.close()
+
+    def __init__(self, db_path):
+        engine = create_engine('sqlite:///' + db_path)
+        session = sessionmaker(bind=engine)
+        self.session = session()
+
+
+class TriadStats:
+    def triad_count(self):
+        return self.session.query(Triad).count()
 
     def close(self):
         self.session.close()

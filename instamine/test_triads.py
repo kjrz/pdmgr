@@ -7,13 +7,13 @@ import sqlite3
 
 from logging.handlers import RotatingFileHandler
 
-from mimesis import Mimesis
-
 
 CONF_PATH = '../instamine.conf'
 TEST_CONF_PATH = '../conf/test.conf'
 PROD_CONF_PATH = '../conf/prod.conf'
 shutil.copyfile(TEST_CONF_PATH, CONF_PATH)
+
+from mimesis import Mimesis
 
 conf = ConfigParser.RawConfigParser()
 conf.read('../conf/test.conf')
