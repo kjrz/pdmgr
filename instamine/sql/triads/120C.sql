@@ -11,5 +11,11 @@ LEFT OUTER JOIN following AS ca ON ac.followee_id = ca.follower_id
                                AND ab.followee_id = cb.followee_id
 LEFT OUTER JOIN following AS bc ON cb.followee_id = bc.follower_id
                                AND cb.follower_id = bc.followee_id
+           JOIN user AS a ON a.id = a_id
+           JOIN user AS b ON b.id = b_id
+           JOIN user AS c ON c.id = c_id
 WHERE ca.follower_id IS NULL
   AND bc.follower_id IS NULL
+  AND a.breed = 'regular'
+  AND b.breed = 'regular'
+  AND c.breed = 'regular'

@@ -63,16 +63,6 @@ class Triad(Base):
     c_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     triad_type = Column(String(4), nullable=False)
     first_seen = Column(DateTime, default=func.now())
-    # changed_to = relationship(
-    #     'triad', secondary='changes',
-    #     primaryjoin=(Change.from_triad_id == id),
-    #     secondaryjoin=(Change.to_triad_id == id)
-    # )  # TODO: test
-    # changed_from = relationship(
-    #     'triad', secondary='changes',
-    #     primaryjoin=(Change.to_triad_id == id),
-    #     secondaryjoin=(Change.from_triad_id == id)
-    # )  # TODO: test
 
 
 class Effort(Base):
@@ -200,6 +190,11 @@ class Mimesis:
             .outerjoin(known_change, known_change.from_triad_id == from_triad.id) \
             .filter(known_change.from_triad_id == None) \
             .all()
+
+    def change_from(self, from_triad_id):
+        return self.session.query(Change) \
+            .filter(Change.from_triad_id == from_triad_id) \
+            .first()
 
     def effort_fin(self):
         record = Effort()

@@ -41,6 +41,7 @@ class TestTriadMiner(unittest.TestCase):
     def populateDb(cls):
         db = Mimesis(db_path=conf.get('db', 'path'))
         cls.zero_three_zero_c(db)
+        cls.celebs_maniacs_and_such(db)
         db.commit()
         db.close()
 
@@ -49,16 +50,35 @@ class TestTriadMiner(unittest.TestCase):
         a = db.add_user(1, 'a0_030C')
         b = db.add_user(2, 'b0_030C')
         c = db.add_user(3, 'c0_030C')
+        db.set_regular(a)
+        db.set_regular(b)
+        db.set_regular(c)
         db.set_follows(a, b)
         db.set_follows(b, c)
         db.set_follows(c, a)
         a = db.add_user(4, 'a1_030C')
         b = db.add_user(5, 'b2_030C')
         c = db.add_user(6, 'c3_030C')
+        db.set_regular(a)
+        db.set_regular(b)
+        db.set_regular(c)
         db.set_follows(a, b)
         db.set_follows(b, c)
         db.set_follows(c, a)
-        db.add_user(7, 'new_boy')
+        a = db.add_user(7, 'new_boy')
+        db.set_regular(a)
+
+    @classmethod
+    def celebs_maniacs_and_such(cls, db):
+        a = db.add_user(8, 'celeb_030C')
+        db.set_celeb(a)
+        b = db.add_user(9, 'maniac_030C')
+        db.set_maniac(b)
+        c = db.add_user(10, 'private_030C')
+        db.set_maniac(c)
+        db.set_follows(a, b)
+        db.set_follows(b, c)
+        db.set_follows(c, a)
 
     def setUp(self):
         pass
@@ -88,14 +108,18 @@ class TestTriadMiner(unittest.TestCase):
         miner = TriadMiner()
         miner.api = mock()
         when(miner.api).followees(any()).thenReturn([])
+        when(miner.api).ammo_left().thenReturn(1000)
         when(miner.api).followees(2).thenReturn([(1, 'a0_030C'), (7, 'new_boy')])
         finder = TriadFinder()
 
         # when
+        sleep(1.0)
         miner.dig()
         finder.work()
-        self.assertListEqual(miner.db.the_changed(), [(1, 4)])
         miner.dig_changes()
+
+        # then
+        self.assertEquals(miner.db.change_from(1).to_triad_id, 4)
 
     @classmethod
     def tearDownClass(cls):

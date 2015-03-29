@@ -78,8 +78,7 @@ class TriadMiner:
         self.api.reload()
 
     def dig(self):
-        # TODO: check ammo
-        while len(self.people) > 0:
+        while len(self.people) > 0 and self.api.ammo_left() > USER_AMMO:
             user_id = self.people.pop()
             user = self.db.user_known(user_id)
             self.attend_to(user)
@@ -107,6 +106,7 @@ class TriadMiner:
     def dig_changes(self):
         changes = self.db.the_changed()
         for from_triad, to_triad in changes:
+            LOG.debug("from_triad = {}, to_triad = {}".format(from_triad, to_triad))
             self.db.add_change(from_triad, to_triad)
         self.db.commit()
 
