@@ -90,6 +90,7 @@ class TestTriadMiner(unittest.TestCase):
     def test_dig_triad_type(self):
         db = Mimesis(DB_PATH)
         res = db.dig_triad('030C').fetchall()
+        self.assertTrue(db.no_efforts_yet())
         db.close()
         self.assertListEqual(res, [(1, 2, 3), (4, 5, 6)])
 
@@ -97,11 +98,9 @@ class TestTriadMiner(unittest.TestCase):
         finder = TriadFinder()
         finder.work()
         finder.effort_fin()
-        finder.close()
 
     def test_miner_init(self):
-        miner = TriadMiner()
-        miner.get_fired()
+        TriadMiner()
 
     def test_new_triad(self):
         # given
@@ -116,9 +115,11 @@ class TestTriadMiner(unittest.TestCase):
         sleep(1.0)
         miner.dig()
         finder.work()
-        miner.dig_changes()
+        finder.dig_changes()
 
         # then
+        self.assertFalse(miner.db.no_efforts_yet())
+        self.assertNotEqual(miner.db.change_from(1), None)
         self.assertEquals(miner.db.change_from(1).to_triad_id, 4)
 
     @classmethod

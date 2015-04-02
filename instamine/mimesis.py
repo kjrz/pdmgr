@@ -31,7 +31,7 @@ class User(Base):
         INACTIVE = 'inactive'
 
     __tablename__ = 'user'
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, nullable=False, primary_key=True)
     username = Column(String(30), nullable=False)
     breed = Column(String(10), default=Breed.UNKNOWN)
     followees = Column(Integer, nullable=True)
@@ -120,17 +120,21 @@ class Mimesis:
 
     @staticmethod
     def set_follows(follower, followee):
+        if followee in follower.follows:
+            LOG.debug("not adding relationship \"{}\" -> \"{}\"".format(
+                follower.username,
+                followee.username))
+            return
         LOG.debug("adding relationship \"{}\" -> \"{}\"".format(
             follower.username,
             followee.username))
         follower.follows.append(followee)
 
     def follows(self, follower, followee):
-        query_result = self.session.query(Following) \
+        return self.session.query(Following) \
             .filter(Following.follower_id == follower.id) \
             .filter(Following.followee_id == followee.id) \
-            .all()
-        return len(query_result) == 1
+            .first()
 
     def the_unvisited(self, n):
         stmt = self.session.query(
@@ -149,7 +153,7 @@ class Mimesis:
 
     def add_triad(self, a_id, b_id, c_id, triad_type):
         if self.triad_known(a_id, b_id, c_id, triad_type):
-            return
+            return None
         LOG.debug("adding triad {}-{}-{}: {}".format(a_id, b_id, c_id, triad_type))
         triad = Triad(a_id=a_id, b_id=b_id, c_id=c_id, triad_type=triad_type)
         self.session.add(triad)
@@ -173,21 +177,24 @@ class Mimesis:
     def add_change(self, from_triad, to_triad):
         self.session.add(Change(from_triad_id=from_triad, to_triad_id=to_triad))
 
-    def the_changed(self):
-        LOG.info('digging changes')
+    def new_triads(self):
         prev_run = self.session.query(func.max(Effort.fin)).first()[0]
         LOG.info('previous run: {}'.format(prev_run))
-        from_triad = aliased(Triad)
-        to_triad = aliased(Triad)
+        return self.session.query(Triad) \
+            .filter(Triad.first_seen > prev_run) \
+            .all()
+
+    def prev_triad(self, to_triad):
+        prev_run = self.session.query(func.max(Effort.fin)).first()[0]
+        to_triad_members = (to_triad.a_id, to_triad.b_id, to_triad.c_id)
         known_change = aliased(Change)
-        return self.session.query(from_triad.id, to_triad.id) \
-            .join(to_triad, and_(to_triad.a_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id)),
-                                 to_triad.b_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id)),
-                                 to_triad.c_id.in_((from_triad.a_id, from_triad.b_id, from_triad.c_id))
-                                 )) \
-            .filter(from_triad.first_seen < prev_run) \
-            .filter(to_triad.first_seen > prev_run) \
-            .outerjoin(known_change, known_change.from_triad_id == from_triad.id) \
+        return self.session.query(Triad)\
+            .filter(and_(Triad.a_id.in_(to_triad_members),
+                         Triad.b_id.in_(to_triad_members),
+                         Triad.c_id.in_(to_triad_members)
+                         )) \
+            .filter(Triad.first_seen < prev_run) \
+            .outerjoin(known_change, known_change.from_triad_id == Triad.id) \
             .filter(known_change.from_triad_id == None) \
             .all()
 
@@ -199,6 +206,9 @@ class Mimesis:
     def effort_fin(self):
         record = Effort()
         self.session.add(record)
+
+    def no_efforts_yet(self):
+        return not self.session.query(Effort).first()
 
     def commit(self):
         self.session.commit()
