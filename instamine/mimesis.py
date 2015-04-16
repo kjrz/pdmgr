@@ -174,6 +174,11 @@ class Mimesis:
             .filter(Change.from_triad_id == None) \
             .all()
 
+    def all_regular(self):
+        return self.session.query(User.id) \
+            .filter(User.breed == User.Breed.REGULAR) \
+            .all()
+
     def add_change(self, from_triad, to_triad):
         self.session.add(Change(from_triad_id=from_triad, to_triad_id=to_triad))
 

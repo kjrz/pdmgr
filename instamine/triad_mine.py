@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
+import sqlite3
 
 from instapi import Session, UserPrivateException
 from mimesis import Mimesis
@@ -36,7 +37,7 @@ class Mine:
         while self.miner.got_work_to_do():
             self.work()
             self.stop()
-        miner.effort_fin()
+        self.miner.effort_fin()
 
     def work(self):
         try:
@@ -93,6 +94,7 @@ class TriadMiner:
             # TODO: forget about him?
             return
         before = len(follower.follows)
+
         for followee_id, name in followees:
             followee = self.db.user_known(followee_id)
             if followee:
@@ -103,7 +105,7 @@ class TriadMiner:
             LOG.info("           +{}".format(delta))
             self.game_changers[follower.username] = (before, delta)
 
-        # TODO: remove unfollowed
+        # TODO: remove unfollowed?
 
     def get_followees(self, follower):
         try:
@@ -113,16 +115,10 @@ class TriadMiner:
             self.db.set_private(follower)
 
     def triadic_people(self):
-        people = set()
-        LOG.info('checking the unstable...')
-        unstable = self.db.the_unstable()
-        LOG.info('...{} unstable found'.format(len(unstable)))
-        for a, b, c in unstable:
-            people.add(a)
-            people.add(b)
-            people.add(c)
-        LOG.info('...{} triadic people'.format(len(people)))
-        return people
+        LOG.info('checking people...')
+        people = self.db.all_regular()
+        LOG.info('...{} people found'.format(len(people)))
+        return [x[0] for x in people]
 
     def got_work_to_do(self):
         return len(self.people) > 0
@@ -159,20 +155,34 @@ class TriadFinder:
 
     def dig(self, triad_type):
         LOG.info("triad type: {}".format(triad_type))
-        triads = self.db.dig_triad(triad_type)
-        LOG.info("got result")
-        added_count = 0
+        triads = self.db.dig_triad(triad_type).fetchall()
+        LOG.info("found: {}".format(len(triads)))
+
+        LOG.info("writing triads to db...")
+        processed = 0
+        new_count = 0
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         for a_id, b_id, c_id in triads:
-            added = self.db.add_triad(a_id, b_id, c_id, triad_type)
-            if added:
-                added_count += 1
-            if added_count > 0 and added_count % 1000 == 0:
-                LOG.info("{}...".format(added_count))
-        self.db.commit()
-        if added_count > 0:
-            LOG.info("+{}".format(added_count))
+            # TODO: move to mimesis
+            try:
+                c.execute("INSERT INTO triad (a_id, b_id, c_id, triad_type, first_seen)"
+                          "VALUES (?, ?, ?, ?, ?)",
+                          (a_id, b_id, c_id, triad_type, now))
+                new_count += 1
+            except sqlite3.IntegrityError:
+                LOG.debug("{}({}, {}, {}) known".format(triad_type, a_id, b_id, c_id))
+
+            processed += 1
+            if processed % 500000 == 0:
+                LOG.info("{}...".format(processed))
+
+        conn.commit()
+        if new_count > 0:
+            LOG.info("+{}".format(new_count))
         else:
-            LOG.info("<none>")
+            LOG.info("<nothing new>")
 
     def dig_changes(self):
         LOG.info("============dig changes=============")
@@ -214,14 +224,14 @@ class TriadFinder:
 
 
 if __name__ == '__main__':
-    miner = TriadMiner()
     finder = TriadFinder()
-    if miner.db.no_efforts_yet():
+    if finder.db.no_efforts_yet():
         finder.work()
         finder.effort_fin()
     else:
-        mine = Mine(miner)
+        mine = Mine(TriadMiner())
         mine.start()
         finder.work()
-        finder.dig_changes()
-        finder.effort_fin()
+        # finder.dig_changes()
+        # finder.effort_fin()
+    # TODO: work
