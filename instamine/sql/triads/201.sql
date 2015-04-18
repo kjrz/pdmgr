@@ -11,10 +11,11 @@ LEFT OUTER JOIN following AS bc ON bc.follower_id = ba.follower_id
                                AND bc.followee_id = ca.follower_id
 LEFT OUTER JOIN following AS cb ON cb.follower_id = ca.follower_id
                                AND cb.followee_id = ba.follower_id
-           JOIN user AS a ON a.id = a_id
-           JOIN user AS b ON b.id = b_id
-           JOIN user AS c ON c.id = c_id
-  AND (   (    ac.follower_id > ba.follower_id
-       AND ba.follower_id > ca.follower_id)
-       OR (    ac.follower_id < ba.follower_id
-       AND ba.follower_id > ca.follower_id))
+WHERE bc.follower_id IS NULL
+  AND bc.followee_id IS NULL
+  AND cb.follower_id IS NULL
+  AND cb.followee_id IS NULL
+  AND (   (    a_id > b_id
+           AND b_id > c_id)
+       OR (    a_id < b_id
+           AND b_id > c_id))

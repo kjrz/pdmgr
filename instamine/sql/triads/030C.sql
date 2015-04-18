@@ -11,8 +11,8 @@ LEFT OUTER JOIN following AS cb ON bc.follower_id = cb.followee_id
                                AND ab.follower_id = ca.followee_id
 LEFT OUTER JOIN following AS ac ON ca.follower_id = ac.followee_id
                                AND ca.followee_id = ac.follower_id
-WHERE ab.follower_id < bc.follower_id
-  AND bc.follower_id < ca.follower_id
+WHERE a_id < b_id
+  AND b_id < c_id
   AND ba.follower_id IS NULL
   AND cb.follower_id IS NULL
   AND ac.follower_id IS NULL
