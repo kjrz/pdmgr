@@ -80,6 +80,7 @@ class Mine:
             self.db.commit()
             self.check_stats()
             exit()
+        # TODO: go back to not processed
 
     def dig(self):
         self.round_start = datetime.now()

@@ -11,6 +11,7 @@ from mockito import *
 CONF_PATH = '../instamine.conf'
 TEST_CONF_PATH = '../conf/test.conf'
 PROD_CONF_PATH = '../conf/prod.conf'
+shutil.copyfile(CONF_PATH, PROD_CONF_PATH)
 shutil.copyfile(TEST_CONF_PATH, CONF_PATH)
 
 from mimesis import Mimesis

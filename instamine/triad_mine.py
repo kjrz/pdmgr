@@ -6,9 +6,10 @@ import time
 from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
+from instagram.bind import InstagramClientError
 import sqlite3
 
-from instapi import Session, UserPrivateException
+from instapi import Session, UserPrivateException, OneHourApiCallsLimitReached
 from mimesis import Mimesis
 
 conf = ConfigParser.RawConfigParser()
@@ -46,6 +47,16 @@ class Mine:
         except InstagramAPIError as e:
             LOG.warn("Instagram API exception")
             LOG.exception(e)
+            time.sleep(60)
+        except InstagramClientError as e:
+            LOG.warn("Instagram Client error")
+            LOG.exception(e)
+            time.sleep(60)
+        except OneHourApiCallsLimitReached as e:
+            LOG.warn("Over {} requests per hour"
+                     .format(conf.getint('api', 'hour_max')))
+            LOG.exception(e)
+            time.sleep(60)
 
     def stop(self):
         self.miner.reload()
@@ -81,7 +92,7 @@ class TriadMiner:
         self.stats()
 
     def dig(self):
-        while len(self.people) > 0 and self.api.ammo_left() > USER_AMMO:
+        while self.api.ammo_left() > USER_AMMO and len(self.people):
             user_id = self.people.pop()
             user = self.db.user_known(user_id)
             LOG.info("next up -> instagram.com/{}".format(user.username))
@@ -118,7 +129,18 @@ class TriadMiner:
         LOG.info('checking people...')
         people = self.db.all_regular()
         LOG.info('...{} people found'.format(len(people)))
-        return [x[0] for x in people]
+        ans = [x[0] for x in people]
+        self.rewind(ans)
+        return ans
+
+    def rewind(self, ans):
+        last_processed_username = conf.get('users', 'last')
+        last_processed_user = self.db.user_id(last_processed_username)
+        if last_processed_user:
+            last_processed_id = last_processed_user.id
+            LOG.info("rewind to {} ({})...".format(last_processed_username, last_processed_id))
+            while not ans.pop() == last_processed_id:
+                pass
 
     def got_work_to_do(self):
         return len(self.people) > 0
@@ -188,10 +210,11 @@ class TriadFinder:
         LOG.info("============dig changes=============")
         new_triads = self.db.new_triads()
         LOG.info("{} new triads".format(len(new_triads)))
+        # TODO: rewind?
         for to_triad in new_triads:
-            LOG.debug("to triad: {}, {}, {}".format(to_triad.a_id, to_triad.b_id, to_triad.c_id))
-            prev_triads = self.db.prev_triad(to_triad)
-            LOG.debug("prev_triads size = {}".format(len(prev_triads)))
+            LOG.info("to triad: {}, {}, {}".format(to_triad.a_id, to_triad.b_id, to_triad.c_id))  # TODO: debug?
+            prev_triads = self.db.prev_triads(to_triad)
+            LOG.info("prev_triads size = {}".format(len(prev_triads)))  # TODO: debug?
             if len(prev_triads) > 1:
                 self.error_too_many_prev_triads(prev_triads, to_triad)
             if len(prev_triads) > 0:
@@ -231,7 +254,7 @@ if __name__ == '__main__':
     else:
         mine = Mine(TriadMiner())
         mine.start()
-        finder.work()
+        # finder.work()
         # finder.dig_changes()
         # finder.effort_fin()
-    # TODO: work
+        # TODO: work

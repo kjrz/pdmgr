@@ -11,6 +11,7 @@ from logging.handlers import RotatingFileHandler
 CONF_PATH = '../instamine.conf'
 TEST_CONF_PATH = '../conf/test.conf'
 PROD_CONF_PATH = '../conf/prod.conf'
+shutil.copyfile(CONF_PATH, PROD_CONF_PATH)
 shutil.copyfile(TEST_CONF_PATH, CONF_PATH)
 
 from mimesis import Mimesis
@@ -283,9 +284,9 @@ class TestQueries(unittest.TestCase):
 
     @classmethod
     def three_zero_zero(cls, db):
-        a = db.add_user(37, 'a_021C')
-        b = db.add_user(38, 'b_021C')
-        c = db.add_user(39, 'c_021C')
+        a = db.add_user(37, 'a_300')
+        b = db.add_user(38, 'b_300')
+        c = db.add_user(39, 'c_300')
         db.set_regular(a)
         db.set_regular(b)
         db.set_regular(c)
@@ -295,6 +296,10 @@ class TestQueries(unittest.TestCase):
         db.set_follows(c, b)
         db.set_follows(a, c)
         db.set_follows(c, a)
+
+    def test_three_zero_zero(self):
+        rows = self.run_select('300')
+        self.assertListEqual(rows, [(37, 38, 39)])
 
     @classmethod
     def tearDownClass(cls):

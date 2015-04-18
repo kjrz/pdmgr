@@ -77,6 +77,11 @@ class Mimesis:
             .filter(User.id == id) \
             .first()
 
+    def user_id(self, username):
+        return self.session.query(User) \
+            .filter(User.username == username) \
+            .first()
+
     def add_user(self, id, username):
         LOG.debug("adding user \"{}\"".format(username))
         user = User(id=id, username=username)
@@ -189,7 +194,7 @@ class Mimesis:
             .filter(Triad.first_seen > prev_run) \
             .all()
 
-    def prev_triad(self, to_triad):
+    def prev_triads(self, to_triad):
         prev_run = self.session.query(func.max(Effort.fin)).first()[0]
         to_triad_members = (to_triad.a_id, to_triad.b_id, to_triad.c_id)
         known_change = aliased(Change)
