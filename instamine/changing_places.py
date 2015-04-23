@@ -1,8 +1,8 @@
 import os
 import sqlite3
 
-DB_ORIGIN = '../data/number_ten (2nd user at etbastpurgato).db'
-DB_COPY = '../data/number_ten (new followings copy).db'
+DB_ORIGIN = '../data/number_ten.db'
+DB_COPY = '../data/number_ten (201 rescue followings).db'
 
 try:
     os.remove(DB_COPY)

@@ -19,3 +19,7 @@ WHERE bc.follower_id IS NULL
            AND b_id > c_id)
        OR (    a_id < b_id
            AND b_id > c_id))
+  AND ab.first_seen > (SELECT max(fin) FROM effort)
+  AND ba.first_seen > (SELECT max(fin) FROM effort)
+  AND ac.first_seen > (SELECT max(fin) FROM effort)
+  AND ca.first_seen > (SELECT max(fin) FROM effort)

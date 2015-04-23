@@ -14,3 +14,6 @@ LEFT OUTER JOIN following AS ca ON bc.followee_id = ca.follower_id
 WHERE ac.follower_id IS NULL
   AND ca.follower_id IS NULL
   AND cb.follower_id IS NULL
+  AND ab.first_seen > (SELECT max(fin) FROM effort)
+  AND ba.first_seen > (SELECT max(fin) FROM effort)
+  AND bc.first_seen > (SELECT max(fin) FROM effort)

@@ -1,5 +1,6 @@
 import ConfigParser
 import logging
+import mysql.connector
 from logging.handlers import RotatingFileHandler
 import os
 import time
@@ -7,10 +8,10 @@ from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
 from instagram.bind import InstagramClientError
-import sqlite3
 
 from instapi import Session, UserPrivateException, OneHourApiCallsLimitReached
 from mimesis import Mimesis
+
 
 conf = ConfigParser.RawConfigParser()
 conf.read('../instamine.conf')
@@ -180,48 +181,71 @@ class TriadFinder:
         triads = self.db.dig_triad(triad_type).fetchall()
         LOG.info("found: {}".format(len(triads)))
 
-        LOG.info("writing triads to db...")
-        processed = 0
-        new_count = 0
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        conn = sqlite3.connect(DB_PATH)
+        LOG.info("set up db connection...")
+        # TODO: move to mimesis
+        conn = mysql.connector.connect(user='instamine',
+                                       password='instamine',
+                                       host='localhost',
+                                       database='instamine')
         c = conn.cursor()
-        for a_id, b_id, c_id in triads:
-            # TODO: move to mimesis
-            try:
-                c.execute("INSERT INTO triad (a_id, b_id, c_id, triad_type, first_seen)"
-                          "VALUES (?, ?, ?, ?, ?)",
-                          (a_id, b_id, c_id, triad_type, now))
-                new_count += 1
-            except sqlite3.IntegrityError:
-                LOG.debug("{}({}, {}, {}) known".format(triad_type, a_id, b_id, c_id))
+        c.execute('SELECT id FROM triad_type WHERE name = %s', (triad_type,))
+        triad_type_id = c.fetchone()[0]
+        LOG.info("appending triad type...")
+        triads = [(a_id, b_id, c_id, triad_type_id) for a_id, b_id, c_id in triads]
+        LOG.info("splitting into chunks...")
+        triads = self.chunks(triads, 500000)
+        LOG.info("writing triads to db...")
 
-            processed += 1
-            if processed % 500000 == 0:
-                LOG.info("{}...".format(processed))
+        triads_added = 0
+        for portion in triads:
+            c.executemany("INSERT IGNORE INTO triad (a_id, b_id, c_id, triad_type_id) "
+                          "VALUES (%s, %s, %s, %s)", portion)
+            triads_added += len(portion)
+            LOG.info("{}...".format(triads_added))
+            conn.commit()
 
-        conn.commit()
-        if new_count > 0:
-            LOG.info("+{}".format(new_count))
-        else:
-            LOG.info("<nothing new>")
+        conn.close()
+        LOG.info("<done>")
+
+        # if new_count > 0:
+        #     LOG.info("+{}".format(new_count))
+        # else:
+        #     LOG.info("<nothing new>")
+        # TODO: check number of new
+
+    @staticmethod
+    def chunks(l, n):
+        for i in xrange(0, len(l), n):
+            yield l[i:i+n]
 
     def dig_changes(self):
-        LOG.info("============dig changes=============")
-        new_triads = self.db.new_triads()
-        LOG.info("{} new triads".format(len(new_triads)))
-        # TODO: rewind?
-        for to_triad in new_triads:
-            LOG.info("to triad: {}, {}, {}".format(to_triad.a_id, to_triad.b_id, to_triad.c_id))  # TODO: debug?
-            prev_triads = self.db.prev_triads(to_triad)
-            LOG.info("prev_triads size = {}".format(len(prev_triads)))  # TODO: debug?
-            if len(prev_triads) > 1:
-                self.error_too_many_prev_triads(prev_triads, to_triad)
-            if len(prev_triads) > 0:
-                from_triad = prev_triads[0]
-                self.info_triad_change(from_triad, to_triad)
-                self.db.add_change(prev_triads[0].id, to_triad.id)
-        self.db.commit()
+        pass
+        # LOG.info("============dig changes=============")
+        # # new_triads = self.db.new_triads()
+        #
+        # # TODO: move to mimesis
+        # conn = mysql.connector.connect(user='instamine',
+        #                                password='instamine',
+        #                                host='localhost',
+        #                                database='instamine')
+        # c = conn.cursor()
+        # c.execute("SELECT * FROM triad WHERE first_seen > (SELECT MAX(fin) FROM effort)")
+        # new_triads = c.fetchall()
+        #
+        # LOG.info("{} new triads".format(len(new_triads)))
+        # # TODO: rewind?
+        # for to_triad in new_triads:
+        #     LOG.info("to triad: {}, {}, {}".format(to_triad.a_id, to_triad.b_id, to_triad.c_id))  # TODO: debug?
+        #     # prev_triads = self.db.prev_triads(to_triad)
+        #     c.execute("")
+        #     LOG.info("prev_triads size = {}".format(len(prev_triads)))  # TODO: debug?
+        #     if len(prev_triads) > 1:
+        #         self.error_too_many_prev_triads(prev_triads, to_triad)
+        #     if len(prev_triads) > 0:
+        #         from_triad = prev_triads[0]
+        #         self.info_triad_change(from_triad, to_triad)
+        #         self.db.add_change(prev_triads[0].id, to_triad.id)
+        # self.db.commit()
 
     @staticmethod
     def error_too_many_prev_triads(prev_triads, to_triad):
@@ -248,13 +272,12 @@ class TriadFinder:
 
 if __name__ == '__main__':
     finder = TriadFinder()
-    if finder.db.no_efforts_yet():
-        finder.work()
-        finder.effort_fin()
-    else:
-        mine = Mine(TriadMiner())
-        mine.start()
-        # finder.work()
-        # finder.dig_changes()
-        # finder.effort_fin()
-        # TODO: work
+    # if finder.db.no_efforts_yet():
+    #     finder.work()
+    #     finder.effort_fin()
+    # else:
+    mine = Mine(TriadMiner())
+    mine.start()
+    finder.work()
+    # finder.dig_changes()
+    # finder.effort_fin()

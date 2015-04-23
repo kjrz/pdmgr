@@ -172,13 +172,6 @@ class Mimesis:
             .filter(Triad.triad_type == triad_type) \
             .first()
 
-    def the_unstable(self):
-        # TODO: only dig unstable triads
-        return self.session.query(Triad.a_id, Triad.b_id, Triad.c_id) \
-            .outerjoin(Change, Triad.id == Change.from_triad_id) \
-            .filter(Change.from_triad_id == None) \
-            .all()
-
     def all_regular(self):
         return self.session.query(User.id) \
             .filter(User.breed == User.Breed.REGULAR) \
