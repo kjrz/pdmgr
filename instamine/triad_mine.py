@@ -1,4 +1,5 @@
 import ConfigParser
+from httplib import IncompleteRead
 import logging
 import mysql.connector
 from logging.handlers import RotatingFileHandler
@@ -56,6 +57,14 @@ class Mine:
         except OneHourApiCallsLimitReached as e:
             LOG.warn("Over {} requests per hour"
                      .format(conf.getint('api', 'hour_max')))
+            LOG.exception(e)
+            time.sleep(60)
+        except IncompleteRead as e:
+            LOG.warn("HTTP lib error")
+            LOG.exception(e)
+            time.sleep(60)
+        except Exception as e:
+            LOG.warn("sth else")
             LOG.exception(e)
             time.sleep(60)
 
@@ -148,10 +157,10 @@ class TriadMiner:
 
     def effort_fin(self):
         self.db.close()
-        LOG.info("============game changers============")
-        for player, stats in self.game_changers.iteritems():
-            LOG.info("{}: {}->{}".format(player, stats[0], stats[1]))
-        LOG.info("===============respect===============")
+        # LOG.info("============game changers============")
+        # for player, stats in self.game_changers.iteritems():
+        #     LOG.info("{}: {}->{}".format(player, stats[0], stats[1]))
+        # LOG.info("===============respect===============")
 
     def stats(self):
         LOG.info("===========triad mine stats==========")
@@ -220,32 +229,42 @@ class TriadFinder:
 
     def dig_changes(self):
         pass
-        # LOG.info("============dig changes=============")
-        # # new_triads = self.db.new_triads()
-        #
         # # TODO: move to mimesis
-        # conn = mysql.connector.connect(user='instamine',
-        #                                password='instamine',
-        #                                host='localhost',
-        #                                database='instamine')
-        # c = conn.cursor()
-        # c.execute("SELECT * FROM triad WHERE first_seen > (SELECT MAX(fin) FROM effort)")
-        # new_triads = c.fetchall()
-        #
-        # LOG.info("{} new triads".format(len(new_triads)))
-        # # TODO: rewind?
-        # for to_triad in new_triads:
-        #     LOG.info("to triad: {}, {}, {}".format(to_triad.a_id, to_triad.b_id, to_triad.c_id))  # TODO: debug?
-        #     # prev_triads = self.db.prev_triads(to_triad)
-        #     c.execute("")
-        #     LOG.info("prev_triads size = {}".format(len(prev_triads)))  # TODO: debug?
-        #     if len(prev_triads) > 1:
-        #         self.error_too_many_prev_triads(prev_triads, to_triad)
-        #     if len(prev_triads) > 0:
-        #         from_triad = prev_triads[0]
-        #         self.info_triad_change(from_triad, to_triad)
-        #         self.db.add_change(prev_triads[0].id, to_triad.id)
-        # self.db.commit()
+        LOG.info("============dig changes=============")
+        conn = mysql.connector.connect(user='instamine',
+                                       password='instamine',
+                                       host='localhost',
+                                       database='instamine')
+        c = conn.cursor()
+        c.execute('SELECT triad.id, a_id, b_id, c_id, name '
+                  'FROM triad '
+                  'JOIN triad_type ON (triad_type_id = triad_type.id) '
+                  'AND first_seen > (SELECT MAX(fin) FROM effort)')
+        # TODO: join on triad type name an get name in one select
+        new_triads = c.fetchall()
+
+        LOG.info("{} new triads".format(len(new_triads)))
+
+        for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
+            c.execute(open('sql/mysql/change.sql').read(),
+                      (a_id, b_id, c_id,
+                       a_id, b_id, c_id,
+                       a_id, b_id, c_id))
+            prev_triads = c.fetchall()
+            if len(prev_triads) > 1:
+                LOG.error("yo it's {} for {}".format(len(prev_triads), to_triad_id))
+                break
+            if len(prev_triads) > 0:
+                from_triad_id, = prev_triads[0]
+                c.execute('SELECT name FROM triad '
+                          'JOIN triad_type ON (triad_type_id = triad_type.id) '
+                          'WHERE triad.id = %s', (from_triad_id, ))
+                prev_triad_name, = c.fetchone()
+                LOG.info('found triad change: {} -> {}'.format(prev_triad_name, to_triad_name))
+                c.execute('INSERT INTO triad_change (from_triad, to_triad) VALUES (%s, %s)',
+                          (from_triad_id, to_triad_id))
+                # break
+        conn.commit()
 
     @staticmethod
     def error_too_many_prev_triads(prev_triads, to_triad):
@@ -261,6 +280,7 @@ class TriadFinder:
     def effort_fin(self):
         time.sleep(1.0)
         self.db.effort_fin()
+        self.mysql_effort_fin()
         self.db.commit()
         self.db.close()
         LOG.info("================fin=================")
@@ -269,15 +289,20 @@ class TriadFinder:
         self.db = Mimesis(DB_PATH)
         self.types = [x[:-4] for x in os.listdir('sql/triads')]
 
+    def mysql_effort_fin(self):
+        conn = mysql.connector.connect(user='instamine',
+                                       password='instamine',
+                                       host='localhost',
+                                       database='instamine')
+        c = conn.cursor()
+        c.execute('INSERT INTO effort VALUES()')
+        conn.commit()
+
 
 if __name__ == '__main__':
-    finder = TriadFinder()
-    # if finder.db.no_efforts_yet():
-    #     finder.work()
-    #     finder.effort_fin()
-    # else:
     mine = Mine(TriadMiner())
     mine.start()
+    finder = TriadFinder()
     finder.work()
-    # finder.dig_changes()
-    # finder.effort_fin()
+    finder.dig_changes()
+    finder.effort_fin()
