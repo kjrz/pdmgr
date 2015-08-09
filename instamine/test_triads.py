@@ -6,6 +6,7 @@ import logging
 import sqlite3
 
 from logging.handlers import RotatingFileHandler
+from mimesis import Mimesis
 
 
 CONF_PATH = '../instamine.conf'
@@ -13,8 +14,6 @@ TEST_CONF_PATH = '../conf/test.conf'
 PROD_CONF_PATH = '../conf/prod.conf'
 shutil.copyfile(CONF_PATH, PROD_CONF_PATH)
 shutil.copyfile(TEST_CONF_PATH, CONF_PATH)
-
-from mimesis import Mimesis
 
 conf = ConfigParser.RawConfigParser()
 conf.read('../conf/test.conf')
@@ -46,6 +45,7 @@ class TestQueries(unittest.TestCase):
     @classmethod
     def populateDb(cls):
         db = Mimesis(db_path=conf.get('db', 'path'))
+        db.effort_a_sec_ago()
         cls.zero_two_one_c(db)
         cls.zero_two_one_d(db)
         cls.zero_two_one_u(db)
@@ -259,10 +259,11 @@ class TestQueries(unittest.TestCase):
 
     def test_two_zero_one_query(self):
         rows = self.run_select('201')
-        self.assertListEqual(rows, [(3100, 3302, 3201),
-                                    (3210, 3312, 3111),
-                                    (3320, 3222, 3121),
-                                    (3330, 3231, 3132)])
+        self.assertSetEqual(set(rows), {(3100, 3302, 3201),
+                                        (3210, 3312, 3111),
+                                        (3320, 3222, 3121),
+                                        (3330, 3231, 3132)}
+                            )
 
     @classmethod
     def two_one_zero(cls, db):

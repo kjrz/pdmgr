@@ -210,6 +210,10 @@ class Mimesis:
         record = Effort()
         self.session.add(record)
 
+    def effort_a_sec_ago(self):
+        record = Effort(fin=func.now() - 1)
+        self.session.add(record)
+
     def no_efforts_yet(self):
         return not self.session.query(Effort).first()
 
