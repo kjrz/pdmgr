@@ -177,6 +177,31 @@ class TriadMiner:
         self.game_changers = {}
 
 
+class TriadClassifier:
+    @staticmethod
+    def classify(followings):
+        if len(followings) == 0:
+            return "003"
+        if len(followings) == 1:
+            return "012"
+        if len(followings) != 2:
+            return None
+        if followings[0][1] == followings[1][0]:
+            if followings[0][0] == followings[1][1]:
+                return "102"
+            else:
+                return "021C"
+        if followings[0][0] == followings[1][0]:
+            return "021D"
+        if followings[0][1] == followings[1][1]:
+            return "021U"
+        else:
+            return None
+
+    def __init__(self):
+        pass
+
+
 class TriadFinder:
     def work(self):
         LOG.info("============dig triads==============")
@@ -228,7 +253,6 @@ class TriadFinder:
             yield l[i:i+n]
 
     def dig_changes(self):
-        pass
         # # TODO: move to mimesis
         LOG.info("============dig changes=============")
         conn = mysql.connector.connect(user='instamine',
@@ -245,6 +269,7 @@ class TriadFinder:
 
         LOG.info("{} new triads".format(len(new_triads)))
 
+        # TODO: move to mimesis
         for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
             c.execute(open('sql/mysql/change.sql').read(),
                       (a_id, b_id, c_id,
@@ -289,7 +314,8 @@ class TriadFinder:
         self.db = Mimesis(DB_PATH)
         self.types = [x[:-4] for x in os.listdir('sql/triads')]
 
-    def mysql_effort_fin(self):
+    @staticmethod
+    def mysql_effort_fin():
         conn = mysql.connector.connect(user='instamine',
                                        password='instamine',
                                        host='localhost',

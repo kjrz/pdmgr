@@ -1,5 +1,6 @@
 import ConfigParser
 import logging
+import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine, and_
 from sqlalchemy.orm import relationship, sessionmaker, aliased
@@ -18,7 +19,7 @@ class Following(Base):
     __tablename__ = 'following'
     follower_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
     followee_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
-    first_seen = Column(DateTime, default=func.now())
+    first_seen = Column(DateTime, default=datetime.datetime.now())
 
 
 class User(Base):
@@ -62,13 +63,13 @@ class Triad(Base):
     b_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     c_id = Column(Integer, ForeignKey('user.id'), nullable=False)
     triad_type = Column(String(4), nullable=False)
-    first_seen = Column(DateTime, default=func.now())
+    first_seen = Column(DateTime, default=datetime.datetime.now())
 
 
 class Effort(Base):
     __tablename__ = 'effort'
     id = Column(Integer, primary_key=True)
-    fin = Column(DateTime, default=func.now())
+    fin = Column(DateTime, default=datetime.datetime.now())
 
 
 class Mimesis:
@@ -156,62 +157,21 @@ class Mimesis:
     def dig_triad(self, triad_name):
         return self.session.execute(open('sql/triads/' + triad_name + '.sql').read())
 
-    def add_triad(self, a_id, b_id, c_id, triad_type):
-        if self.triad_known(a_id, b_id, c_id, triad_type):
-            return None
-        LOG.debug("adding triad {}-{}-{}: {}".format(a_id, b_id, c_id, triad_type))
-        triad = Triad(a_id=a_id, b_id=b_id, c_id=c_id, triad_type=triad_type)
-        self.session.add(triad)
-        return triad
-
-    def triad_known(self, a_id, b_id, c_id, triad_type):
-        return self.session.query(Triad) \
-            .filter(Triad.a_id == a_id) \
-            .filter(Triad.b_id == b_id) \
-            .filter(Triad.c_id == c_id) \
-            .filter(Triad.triad_type == triad_type) \
-            .first()
+    def get_triad(self, nodes, before):
+        return self.session.query(Following.follower_id, Following.followee_id).\
+            filter(Following.follower_id.in_(nodes)).\
+            filter(Following.followee_id.in_(nodes)).\
+            filter(Following.first_seen < before).\
+            all()
 
     def all_regular(self):
         return self.session.query(User.id) \
             .filter(User.breed == User.Breed.REGULAR) \
             .all()
 
-    def add_change(self, from_triad, to_triad):
-        self.session.add(Change(from_triad_id=from_triad, to_triad_id=to_triad))
-
-    def new_triads(self):
-        prev_run = self.session.query(func.max(Effort.fin)).first()[0]
-        LOG.info('previous run: {}'.format(prev_run))
-        return self.session.query(Triad) \
-            .filter(Triad.first_seen > prev_run) \
-            .all()
-
-    def prev_triads(self, to_triad):
-        prev_run = self.session.query(func.max(Effort.fin)).first()[0]
-        to_triad_members = (to_triad.a_id, to_triad.b_id, to_triad.c_id)
-        known_change = aliased(Change)
-        return self.session.query(Triad)\
-            .filter(and_(Triad.a_id.in_(to_triad_members),
-                         Triad.b_id.in_(to_triad_members),
-                         Triad.c_id.in_(to_triad_members)
-                         )) \
-            .filter(Triad.first_seen < prev_run) \
-            .outerjoin(known_change, known_change.from_triad_id == Triad.id) \
-            .filter(known_change.from_triad_id == None) \
-            .all()
-
-    def change_from(self, from_triad_id):
-        return self.session.query(Change) \
-            .filter(Change.from_triad_id == from_triad_id) \
-            .first()
-
     def effort_fin(self):
         record = Effort()
-        self.session.add(record)
-
-    def effort_a_sec_ago(self):
-        record = Effort(fin=func.now() - 1)
+        LOG.debug("setting effort fin: {}".format(unicode(record.fin)))
         self.session.add(record)
 
     def no_efforts_yet(self):
