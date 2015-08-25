@@ -2,8 +2,8 @@ import ConfigParser
 import logging
 import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine, and_
-from sqlalchemy.orm import relationship, sessionmaker, aliased
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine
+from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -47,23 +47,6 @@ class User(Base):
         primaryjoin=(Following.followee_id == id),
         secondaryjoin=(Following.follower_id == id)
     )
-
-
-class Change(Base):
-    __tablename__ = 'change'
-    from_triad_id = Column(Integer, ForeignKey('triad.id'), nullable=False, primary_key=True)
-    # from_triad = relationship('triad', primaryjoin=(Triad.id == from_triad_id))
-    to_triad_id = Column(Integer, ForeignKey('triad.id'), nullable=True, primary_key=True)
-
-
-class Triad(Base):
-    __tablename__ = 'triad'
-    id = Column(Integer, primary_key=True)
-    a_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    b_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    c_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-    triad_type = Column(String(4), nullable=False)
-    first_seen = Column(DateTime, default=datetime.datetime.now())
 
 
 class Effort(Base):
@@ -158,7 +141,7 @@ class Mimesis:
         return self.session.execute(open('sql/triads/' + triad_name + '.sql').read())
 
     def get_triad(self, nodes, before):
-        return self.session.query(Following.follower_id, Following.followee_id).\
+        return self.session.query(Following.follower_id, Following.followee_id, Following.first_seen).\
             filter(Following.follower_id.in_(nodes)).\
             filter(Following.followee_id.in_(nodes)).\
             filter(Following.first_seen < before).\
@@ -173,6 +156,12 @@ class Mimesis:
         record = Effort()
         LOG.debug("setting effort fin: {}".format(unicode(record.fin)))
         self.session.add(record)
+
+    def last_fin(self):
+        return self.session.query(func.max(Effort.fin)).first()[0]
+
+    def first_fin(self):
+        return self.session.query(func.min(Effort.fin)).first()[0]
 
     def no_efforts_yet(self):
         return not self.session.query(Effort).first()
@@ -194,6 +183,71 @@ class Mimesis:
         self.init_db(engine)
         session = sessionmaker(bind=engine)
         self.session = session()
+
+
+class MySqlTriadMimesis:
+    def insert_classified_triad(self, nodes, classification, first_seen):
+        self.c.execute("INSERT INTO triad (a_id, b_id, c_id, triad_type_id, first_seen) "
+                       "VALUES (%s, %s, %s, (SELECT id FROM triad_type WHERE name = %s), %s)",
+                       (nodes[0], nodes[1], nodes[2], classification, first_seen))
+        return self.c.lastrowid
+
+    def write_triads(self, triads, triad_type):
+        self.c.execute("SELECT id FROM triad_type "
+                       "WHERE name = %s", (triad_type,))
+        triad_type_id = self.c.fetchone()[0]
+
+        LOG.info("appending triad type...")
+        triads = [(a_id, b_id, c_id, triad_type_id) for a_id, b_id, c_id in triads]
+
+        LOG.info("splitting in chunks...")
+        triads = MySqlTriadMimesis.chunks(triads, 500000)
+
+        LOG.info("writing triads to db...")
+        triads_added = 0
+        for portion in triads:
+            self.c.executemany("INSERT IGNORE INTO triad (a_id, b_id, c_id, triad_type_id) "
+                               "VALUES (%s, %s, %s, %s)", portion)
+            triads_added += len(portion)
+            LOG.info("{}...".format(triads_added))
+            self.conn.commit()
+
+        LOG.info("<done>")
+
+    @staticmethod
+    def chunks(l, n):
+        for i in xrange(0, len(l), n):
+            yield l[i:i+n]
+
+    def get_new_triads(self):
+        self.c.execute("SELECT triad.id, a_id, b_id, c_id, name "
+                       "FROM triad "
+                       "JOIN triad_type ON (triad_type_id = triad_type.id) "
+                       "AND first_seen > (SELECT MAX(fin) FROM effort)")
+        return self.c.fetchall()
+
+    def get_prev_triads(self, a_id, b_id, c_id):
+        self.c.execute(open("sql/mysql/change.sql").read(),
+                       (a_id, b_id, c_id,
+                        a_id, b_id, c_id,
+                        a_id, b_id, c_id))
+        prev_triads = self.c.fetchall()
+        return prev_triads
+        # TODO: get max first_seen
+
+    def write_change(self, from_triad_id, to_triad_id):
+        self.c.execute("INSERT INTO triad_change (from_triad, to_triad) VALUES (%s, %s)",
+                       (from_triad_id, to_triad_id))
+
+    def effort_fin(self):
+        self.c.execute("INSERT INTO effort () VALUES ()")
+
+    def commit(self):
+        self.conn.commit()
+
+    def __init__(self, conn):
+        self.conn = conn
+        self.c = conn.cursor()
 
 
 class UserStats:
@@ -260,14 +314,14 @@ class UserStats:
         self.session = session()
 
 
-class TriadStats:
-    def triad_count(self):
-        return self.session.query(Triad).count()
-
-    def close(self):
-        self.session.close()
-
-    def __init__(self, db_path):
-        engine = create_engine('sqlite:///' + db_path)
-        session = sessionmaker(bind=engine)
-        self.session = session()
+# class TriadStats:
+#     def triad_count(self):
+#         return self.session.query(Triad).count()
+#
+#     def close(self):
+#         self.session.close()
+#
+#     def __init__(self, db_path):
+#         engine = create_engine('sqlite:///' + db_path)
+#         session = sessionmaker(bind=engine)
+#         self.session = session()

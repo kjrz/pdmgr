@@ -25,15 +25,15 @@ handler = logging.handlers.RotatingFileHandler(
     backupCount=2)
 handler.setFormatter(logging.Formatter(conf.get('log', 'format')))
 
-LOG = logging.getLogger(conf.get('log', 'name'))
-LOG.setLevel(conf.get('log', 'level'))
-LOG.addHandler(handler)
+# LOG = logging.getLogger(conf.get('log', 'name'))
+# LOG.setLevel(conf.get('log', 'level'))
+# LOG.addHandler(handler)
 
 
 class TestQueriesMimesis(Mimesis):
     def effort_a_min_ago(self):
         record = Effort(fin=datetime.datetime.now() - datetime.timedelta(minutes=1))
-        LOG.debug("setting effort fin: {}".format(unicode(record.fin)))
+        # LOG.debug("setting effort fin: {}".format(unicode(record.fin)))
         self.session.add(record)
 
 

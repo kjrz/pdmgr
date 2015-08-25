@@ -1,11 +1,11 @@
 import ConfigParser
+import mysql.connector
 import unittest
 import datetime
-from triad_mine import TriadClassifier
 
-from mimesis import Mimesis, Following
+from triad_mine import TriadClassifier, TriadFinder, TriadChangeFinder
+from mimesis import Mimesis, Following, MySqlTriadMimesis
 from mimesis import Effort
-
 from test_triads import TestQueries
 
 
@@ -18,12 +18,44 @@ class TestingChangesMimesis(Mimesis):
         record = Effort(fin=datetime.datetime.now() - datetime.timedelta(minutes=m))
         self.session.add(record)
 
-    def last_fin(self):
-        return self.session.query(Effort).first().fin
+    def new_fin(self):
+        fin = self.last_fin() + datetime.timedelta(minutes=2)
+        self.session.add(Effort(fin=fin))
+        self.session.commit()
 
     def they_go_way_back(self, follower_id, followee_id, to):
         following = self.session.query(Following).filter_by(follower_id=follower_id, followee_id=followee_id).first()
         following.first_seen = to
+
+    def add_following(self, follower_id, followee_id):
+        first_seen = self.last_fin() + datetime.timedelta(minutes=1)
+        self.session.add(Following(follower_id=follower_id, followee_id=followee_id, first_seen=first_seen))
+
+
+class TestingMySqlTriadMimesis(MySqlTriadMimesis):
+    def last_triad_id(self):
+        self.c.execute("SELECT count(*) FROM triad")
+        last_triad_id = self.c.fetchone()[0]
+        return last_triad_id
+
+    def move_triads_in_time(self, last_triad_id):
+        fin = self.last_fin() + datetime.timedelta(minutes=1)
+        self.c.execute("UPDATE triad SET first_seen = %s WHERE id > %s", (fin, last_triad_id))
+        self.conn.commit()
+
+    def write_triads(self, triads, triad_type):
+        last_triad_id = self.last_triad_id()
+        MySqlTriadMimesis.write_triads(self, triads, triad_type)
+        self.move_triads_in_time(last_triad_id)
+
+    def last_fin(self):
+        self.c.execute("SELECT max(fin) FROM effort")
+        return self.c.fetchone()[0]
+
+    def new_fin(self):
+        fin = self.last_fin() + datetime.timedelta(minutes=2)
+        self.c.execute("INSERT INTO effort (fin) VALUES (%s)", (fin,))
+        self.conn.commit()
 
 
 class TestClassifier(unittest.TestCase):
@@ -101,15 +133,93 @@ class TestChanges(TestQueries):
         self.set_first_seen(db, edges, last_fin + datetime.timedelta(minutes=1))
         db.close()
 
-    def set_first_seen(self, db, edges, before):
+    @staticmethod
+    def set_first_seen(db, edges, before):
         for edge in edges:
             db.they_go_way_back(edge[0], edge[1], before)
         db.commit()
 
 
 class TestTriadChangeFinder(TestQueries):
-    # TODO
-    pass
+    @classmethod
+    def setUpClass(cls):
+        TestQueries.setUpClass()
+        conn = mysql.connector.connect(user='instamine',
+                                       password='instamine',
+                                       host='localhost',
+                                       database='test')
+        c = conn.cursor()
+        for line in open("sql/mysql/instamine-ddl-lines.sql"):
+            c.execute(line)
+        conn.commit()
+        conn.close()
+
+    def test_030C(self):
+        pass
+
+    def test_030T(self):
+        pass
+
+    def test_111D(self):
+        pass
+
+    def test_111U(self):
+        pass
+
+    def test_120C(self):
+        pass
+
+    def test_120D(self):
+        pass
+
+    def test_120U(self):
+        pass
+
+    def test_201(self):
+        pass
+
+    def test_210(self):
+        pass
+
+    def test_300(self):
+        pass
+
+    def test_003_030C_120C(self):
+        db = TestingChangesMimesis()
+        triad_conn = mysql.connector.connect(user='instamine',
+                                             password='instamine',
+                                             host='localhost',
+                                             database='test')
+        triad_mimesis = TestingMySqlTriadMimesis(triad_conn)
+        finder = TriadFinder(triad_mimesis)
+        changes = TriadChangeFinder(triad_mimesis)
+        triad_mimesis.effort_fin()
+
+        finder.work()
+        triad_mimesis.new_fin()
+        db.new_fin()
+
+        db.add_following(40, 41)
+        db.add_following(41, 42)
+        db.add_following(42, 40)
+        db.commit()
+
+        finder.work()
+        changes.dig_changes()
+        triad_mimesis.new_fin()
+        db.new_fin()
+
+        db.add_following(41, 40)
+        db.commit()
+
+        finder.work()
+        changes.dig_changes()
+        triad_mimesis.new_fin()
+        db.new_fin()
+
+    @classmethod
+    def tearDownClass(cls):
+        TestQueries.tearDownClass()
 
 
 if __name__ == '__main__':

@@ -1,11 +1,10 @@
 import ConfigParser
 from httplib import IncompleteRead
 import logging
-import mysql.connector
 from logging.handlers import RotatingFileHandler
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta, datetime
 
 from instagram import InstagramAPIError
 from instagram.bind import InstagramClientError
@@ -86,16 +85,6 @@ class Mine:
         self.miner = miner
 
 
-class TriadsToAttendTo:
-    def __init__(self):
-        self.types = [x[:-4] for x in os.listdir('sql/triads')]
-
-
-class TriadMembersToAttendTo:
-    def __init__(self):
-        self.users = set()
-
-
 class TriadMiner:
     def reload(self):
         self.api.reload()
@@ -112,7 +101,7 @@ class TriadMiner:
     def attend_to(self, follower):
         followees = self.get_followees(follower)
         if not followees:
-            # TODO: forget about him?
+            # TODO: forget him?
             return
         before = len(follower.follows)
 
@@ -125,8 +114,6 @@ class TriadMiner:
         if delta:
             LOG.info("           +{}".format(delta))
             self.game_changers[follower.username] = (before, delta)
-
-        # TODO: remove unfollowed?
 
     def get_followees(self, follower):
         try:
@@ -157,10 +144,6 @@ class TriadMiner:
 
     def effort_fin(self):
         self.db.close()
-        # LOG.info("============game changers============")
-        # for player, stats in self.game_changers.iteritems():
-        #     LOG.info("{}: {}->{}".format(player, stats[0], stats[1]))
-        # LOG.info("===============respect===============")
 
     def stats(self):
         LOG.info("===========triad mine stats==========")
@@ -216,80 +199,30 @@ class TriadFinder:
         LOG.info("found: {}".format(len(triads)))
 
         LOG.info("set up db connection...")
-        # TODO: move to mimesis
-        conn = mysql.connector.connect(user='instamine',
-                                       password='instamine',
-                                       host='localhost',
-                                       database='instamine')
-        c = conn.cursor()
-        c.execute('SELECT id FROM triad_type WHERE name = %s', (triad_type,))
-        triad_type_id = c.fetchone()[0]
-        LOG.info("appending triad type...")
-        triads = [(a_id, b_id, c_id, triad_type_id) for a_id, b_id, c_id in triads]
-        LOG.info("splitting into chunks...")
-        triads = self.chunks(triads, 500000)
-        LOG.info("writing triads to db...")
-
-        triads_added = 0
-        for portion in triads:
-            c.executemany("INSERT IGNORE INTO triad (a_id, b_id, c_id, triad_type_id) "
-                          "VALUES (%s, %s, %s, %s)", portion)
-            triads_added += len(portion)
-            LOG.info("{}...".format(triads_added))
-            conn.commit()
-
-        conn.close()
-        LOG.info("<done>")
-
-        # if new_count > 0:
-        #     LOG.info("+{}".format(new_count))
-        # else:
-        #     LOG.info("<nothing new>")
-        # TODO: check number of new
+        self.db2.write_triads(triads, triad_type)
 
     @staticmethod
     def chunks(l, n):
         for i in xrange(0, len(l), n):
             yield l[i:i+n]
 
+    # TODO: remove
     def dig_changes(self):
-        # # TODO: move to mimesis
         LOG.info("============dig changes=============")
-        conn = mysql.connector.connect(user='instamine',
-                                       password='instamine',
-                                       host='localhost',
-                                       database='instamine')
-        c = conn.cursor()
-        c.execute('SELECT triad.id, a_id, b_id, c_id, name '
-                  'FROM triad '
-                  'JOIN triad_type ON (triad_type_id = triad_type.id) '
-                  'AND first_seen > (SELECT MAX(fin) FROM effort)')
-        # TODO: join on triad type name an get name in one select
-        new_triads = c.fetchall()
 
+        new_triads = self.db2.get_new_triads()
         LOG.info("{} new triads".format(len(new_triads)))
 
-        # TODO: move to mimesis
         for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
-            c.execute(open('sql/mysql/change.sql').read(),
-                      (a_id, b_id, c_id,
-                       a_id, b_id, c_id,
-                       a_id, b_id, c_id))
-            prev_triads = c.fetchall()
+            prev_triads = self.db2.get_prev_triads(a_id, b_id, c_id)
             if len(prev_triads) > 1:
                 LOG.error("yo it's {} for {}".format(len(prev_triads), to_triad_id))
                 break
             if len(prev_triads) > 0:
-                from_triad_id, = prev_triads[0]
-                c.execute('SELECT name FROM triad '
-                          'JOIN triad_type ON (triad_type_id = triad_type.id) '
-                          'WHERE triad.id = %s', (from_triad_id, ))
-                prev_triad_name, = c.fetchone()
-                LOG.info('found triad change: {} -> {}'.format(prev_triad_name, to_triad_name))
-                c.execute('INSERT INTO triad_change (from_triad, to_triad) VALUES (%s, %s)',
-                          (from_triad_id, to_triad_id))
-                # break
-        conn.commit()
+                from_triad_id, from_triad_name = prev_triads[0]
+                LOG.info('found triad change: {} -> {}'.format(from_triad_name, to_triad_name))
+                self.db2.write_change(from_triad_id, to_triad_id)
+        self.db2.commit()
 
     @staticmethod
     def error_too_many_prev_triads(prev_triads, to_triad):
@@ -310,20 +243,56 @@ class TriadFinder:
         self.db.close()
         LOG.info("================fin=================")
 
-    def __init__(self):
+    def __init__(self, triad_mimesis):
         self.db = Mimesis(DB_PATH)
+        self.db2 = triad_mimesis
         self.types = [x[:-4] for x in os.listdir('sql/triads')]
 
     @staticmethod
     def mysql_effort_fin():
-        conn = mysql.connector.connect(user='instamine',
-                                       password='instamine',
-                                       host='localhost',
-                                       database='instamine')
-        c = conn.cursor()
-        c.execute('INSERT INTO effort VALUES()')
-        conn.commit()
+        # conn = mysql.connector.connect(user='instamine',
+        #                                password='instamine',
+        #                                host='localhost',
+        #                                database='instamine')
+        # c = conn.cursor()
+        # c.execute('INSERT INTO effort VALUES()')
+        # conn.commit()
+        pass
+        # TODO: to mimesis
 
+
+class TriadChangeFinder:
+    def dig_changes(self):
+        LOG.info("============dig changes=============")
+
+        new_triads = self.db2.get_new_triads()
+        LOG.info("{} new triads".format(len(new_triads)))
+
+        for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
+            from_triad_id = self.dig_change((a_id, b_id, c_id))
+            self.db2.write_change(from_triad_id, to_triad_id)
+
+        self.db2.commit()
+
+    def dig_change(self, nodes):
+        # TODO: execute SQL
+        # prev_triads = self.db2.get_prev_triads(a_id, b_id, c_id)
+        followings = self.db.get_triad(nodes, before=self.last_fin)
+        classification = TriadClassifier.classify(followings)
+        if classification is not None:
+            first_seen = self.get_first_seen(followings)
+            row_id = self.db2.insert_classified_triad(nodes, classification, first_seen)
+            return row_id
+
+    def get_first_seen(self, followings):
+        if len(followings) == 0:
+            return self.db.first_fin() - timedelta(days=7)
+        return max([following[2] for following in followings])
+
+    def __init__(self, triad_mimesis):
+        self.db = Mimesis(DB_PATH)
+        self.last_fin = self.db.last_fin()
+        self.db2 = triad_mimesis
 
 if __name__ == '__main__':
     mine = Mine(TriadMiner())

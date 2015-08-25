@@ -16,6 +16,7 @@ WHERE a_id < b_id
   AND ba.follower_id IS NULL
   AND cb.follower_id IS NULL
   AND ac.follower_id IS NULL
-  AND ab.first_seen > (SELECT max(fin) FROM effort)
-  AND bc.first_seen > (SELECT max(fin) FROM effort)
-  AND ca.first_seen > (SELECT max(fin) FROM effort)
+  AND (   ab.first_seen > (SELECT max(fin) FROM effort)
+       OR bc.first_seen > (SELECT max(fin) FROM effort)
+       OR ca.first_seen > (SELECT max(fin) FROM effort)
+      )

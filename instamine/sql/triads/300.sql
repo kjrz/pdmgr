@@ -13,9 +13,10 @@ JOIN following AS ca ON ca.follower_id = cb.follower_id
                     AND ca.followee_id = ab.follower_id
 WHERE a_id < b_id
   AND b_id < c_id
-  AND ab.first_seen > (SELECT max(fin) FROM effort)
-  AND ba.first_seen > (SELECT max(fin) FROM effort)
-  AND bc.first_seen > (SELECT max(fin) FROM effort)
-  AND cb.first_seen > (SELECT max(fin) FROM effort)
-  AND ac.first_seen > (SELECT max(fin) FROM effort)
-  AND ca.first_seen > (SELECT max(fin) FROM effort)
+  AND (   ab.first_seen > (SELECT max(fin) FROM effort)
+       OR ba.first_seen > (SELECT max(fin) FROM effort)
+       OR bc.first_seen > (SELECT max(fin) FROM effort)
+       OR cb.first_seen > (SELECT max(fin) FROM effort)
+       OR ac.first_seen > (SELECT max(fin) FROM effort)
+       OR ca.first_seen > (SELECT max(fin) FROM effort)
+      )

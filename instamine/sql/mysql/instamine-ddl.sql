@@ -1,13 +1,19 @@
+DROP TABLE effort;
+
 CREATE TABLE effort (
     id INT NOT NULL AUTO_INCREMENT,
     fin TIMESTAMP, PRIMARY KEY (id)
 );
+
+DROP TABLE triad_type;
 
 CREATE TABLE triad_type (
     id SMALLINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(4) NOT NULL,
     PRIMARY KEY (id)
 );
+
+DROP TABLE triad;
 
 CREATE TABLE triad (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -21,10 +27,16 @@ CREATE TABLE triad (
     FOREIGN KEY (triad_type_id) REFERENCES triad_type (id)
 );
 
+DROP TABLE triad_change;
+
 CREATE TABLE triad_change (
     from_triad INT UNSIGNED NOT NULL,
     to_triad INT UNSIGNED NOT NULL,
     PRIMARY KEY (from_triad, to_triad),
     FOREIGN KEY (from_triad) REFERENCES triad (id),
     FOREIGN KEY (to_triad) REFERENCES triad (id)
-)
+);
+
+INSERT INTO triad_type (name) VALUES ('003'), ('012'), ('021C'),
+('021D'), ('021U'), ('030C'), ('030T'), ('102'), ('111D'),
+('111U'), ('120C'), ('120D'), ('120U'), ('201'), ('210'), ('300');
