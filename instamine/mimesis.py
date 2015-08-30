@@ -226,14 +226,19 @@ class MySqlTriadMimesis:
                        "AND first_seen > (SELECT MAX(fin) FROM effort)")
         return self.c.fetchall()
 
-    def get_prev_triads(self, a_id, b_id, c_id):
+    def get_prev_triads(self, nodes):
+        a_id = nodes[0]
+        b_id = nodes[1]
+        c_id = nodes[2]
         self.c.execute(open("sql/mysql/change.sql").read(),
                        (a_id, b_id, c_id,
                         a_id, b_id, c_id,
                         a_id, b_id, c_id))
         prev_triads = self.c.fetchall()
-        return prev_triads
-        # TODO: get max first_seen
+        if len(prev_triads) == 0:
+            return None
+        else:
+            return prev_triads[0]
 
     def write_change(self, from_triad_id, to_triad_id):
         self.c.execute("INSERT INTO triad_change (from_triad, to_triad) VALUES (%s, %s)",

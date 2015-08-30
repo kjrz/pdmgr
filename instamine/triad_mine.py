@@ -275,13 +275,17 @@ class TriadChangeFinder:
         self.db2.commit()
 
     def dig_change(self, nodes):
-        # TODO: execute SQL
-        # prev_triads = self.db2.get_prev_triads(a_id, b_id, c_id)
+        prev_triad = self.db2.get_prev_triads(nodes)
+        # TODO: log the finding
+        if prev_triad is not None:
+            return prev_triad[0]
+
         followings = self.db.get_triad(nodes, before=self.last_fin)
         classification = TriadClassifier.classify(followings)
         if classification is not None:
             first_seen = self.get_first_seen(followings)
             row_id = self.db2.insert_classified_triad(nodes, classification, first_seen)
+            # TODO: log the finding
             return row_id
 
     def get_first_seen(self, followings):

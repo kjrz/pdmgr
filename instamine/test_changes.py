@@ -8,7 +8,6 @@ from mimesis import Mimesis, Following, MySqlTriadMimesis
 from mimesis import Effort
 from test_triads import TestQueries
 
-
 conf = ConfigParser.RawConfigParser()
 conf.read('../conf/test.conf')
 
@@ -184,7 +183,7 @@ class TestTriadChangeFinder(TestQueries):
     def test_300(self):
         pass
 
-    def test_003_030C_120C(self):
+    def test_003_030C_120C_210(self):
         db = TestingChangesMimesis()
         triad_conn = mysql.connector.connect(user='instamine',
                                              password='instamine',
@@ -195,27 +194,56 @@ class TestTriadChangeFinder(TestQueries):
         changes = TriadChangeFinder(triad_mimesis)
         triad_mimesis.effort_fin()
 
-        finder.work()
-        triad_mimesis.new_fin()
-        db.new_fin()
+        self.first_mine_cycle(db, finder, triad_mimesis)
 
         db.add_following(40, 41)
         db.add_following(41, 42)
         db.add_following(42, 40)
         db.commit()
 
-        finder.work()
-        changes.dig_changes()
-        triad_mimesis.new_fin()
-        db.new_fin()
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 1, {40, 41, 42, '003', '030C'})
 
         db.add_following(41, 40)
         db.commit()
 
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 2, {40, 41, 42, '030C', '120C'})
+
+        db.add_following(42, 41)
+        db.commit()
+
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 3, {40, 41, 42, '120C', '210'})
+
+        # TODO
+        # some other cases
+
+    def first_mine_cycle(self, db, finder, triad_mimesis):
+        finder.work()
+        triad_mimesis.new_fin()
+        db.new_fin()
+
+    def mine_cycle(self, changes, db, finder, triad_mimesis):
         finder.work()
         changes.dig_changes()
         triad_mimesis.new_fin()
         db.new_fin()
+
+    def assertChangesList(self, triad_conn, changes_count, new_change):
+        changes_list = self.changes_list(triad_conn)
+        self.assertEquals(len(changes_list), changes_count)
+        self.assertNewChange(changes_list, new_change)
+
+    def changes_list(self, triad_conn):
+        c = triad_conn.cursor()
+        c.execute(open("sql/mysql/list_changes.sql").read())
+        changes_list = c.fetchall()
+        return changes_list
+
+    def assertNewChange(self, changes_list, new_change):
+        first_change = changes_list[-1]
+        self.assertSetEqual(set(first_change[:5]), new_change)
 
     @classmethod
     def tearDownClass(cls):
