@@ -143,20 +143,62 @@ class TestTriadChangeFinder(TestQueries):
     @classmethod
     def setUpClass(cls):
         TestQueries.setUpClass()
-        conn = mysql.connector.connect(user='instamine',
-                                       password='instamine',
-                                       host='localhost',
-                                       database='test')
-        c = conn.cursor()
+        triad_conn = mysql.connector.connect(user='instamine',
+                                             password='instamine',
+                                             host='localhost',
+                                             database='test')
+        c = triad_conn.cursor()
         for line in open("sql/mysql/instamine-ddl-lines.sql"):
             c.execute(line)
-        conn.commit()
-        conn.close()
+        triad_conn.commit()
+        triad_mimesis = TestingMySqlTriadMimesis(triad_conn)
+        finder = TriadFinder(triad_mimesis)
+        triad_mimesis.effort_fin()
+        db = TestingChangesMimesis()
+        cls.first_mine_cycle(db, finder, triad_mimesis)
+        triad_conn.close()
+
+    def test_003_030C_120C_210(self):
+        db = TestingChangesMimesis()
+        triad_conn = mysql.connector.connect(user='instamine',
+                                             password='instamine',
+                                             host='localhost',
+                                             database='test')
+        triad_mimesis = TestingMySqlTriadMimesis(triad_conn)
+        finder = TriadFinder(triad_mimesis)
+        changes = TriadChangeFinder(triad_mimesis)
+
+        self.add_followings(db, [(40, 41), (41, 42), (42, 40)])
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 1, {40, 41, 42, '003', '030C'})
+
+        self.add_followings(db, [(41, 40)])
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 2, {40, 41, 42, '030C', '120C'})
+
+        self.add_followings(db, [(42, 41)])
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 3, {40, 41, 42, '120C', '210'})
+
+    def test_030C_300(self):
+        db = TestingChangesMimesis()
+        triad_conn = mysql.connector.connect(user='instamine',
+                                             password='instamine',
+                                             host='localhost',
+                                             database='test')
+        triad_mimesis = TestingMySqlTriadMimesis(triad_conn)
+        finder = TriadFinder(triad_mimesis)
+        changes = TriadChangeFinder(triad_mimesis)
+
+        self.add_followings(db, [(11, 10), (12, 11), (10, 12)])
+        self.mine_cycle(changes, db, finder, triad_mimesis)
+        self.assertChangesList(triad_conn, 4, {10, 11, 12, '030C', '300'})
 
     def test_030C(self):
         pass
 
     def test_030T(self):
+        # self.add_followings(db, [(15, 13), (14, 13), (15, 14)])
         pass
 
     def test_111D(self):
@@ -183,48 +225,20 @@ class TestTriadChangeFinder(TestQueries):
     def test_300(self):
         pass
 
-    def test_003_030C_120C_210(self):
-        db = TestingChangesMimesis()
-        triad_conn = mysql.connector.connect(user='instamine',
-                                             password='instamine',
-                                             host='localhost',
-                                             database='test')
-        triad_mimesis = TestingMySqlTriadMimesis(triad_conn)
-        finder = TriadFinder(triad_mimesis)
-        changes = TriadChangeFinder(triad_mimesis)
-        triad_mimesis.effort_fin()
-
-        self.first_mine_cycle(db, finder, triad_mimesis)
-
-        db.add_following(40, 41)
-        db.add_following(41, 42)
-        db.add_following(42, 40)
+    @staticmethod
+    def add_followings(db, followings):
+        for follower_id, followee_id in followings:
+            db.add_following(follower_id, followee_id)
         db.commit()
 
-        self.mine_cycle(changes, db, finder, triad_mimesis)
-        self.assertChangesList(triad_conn, 1, {40, 41, 42, '003', '030C'})
-
-        db.add_following(41, 40)
-        db.commit()
-
-        self.mine_cycle(changes, db, finder, triad_mimesis)
-        self.assertChangesList(triad_conn, 2, {40, 41, 42, '030C', '120C'})
-
-        db.add_following(42, 41)
-        db.commit()
-
-        self.mine_cycle(changes, db, finder, triad_mimesis)
-        self.assertChangesList(triad_conn, 3, {40, 41, 42, '120C', '210'})
-
-        # TODO
-        # some other cases
-
-    def first_mine_cycle(self, db, finder, triad_mimesis):
+    @staticmethod
+    def first_mine_cycle(db, finder, triad_mimesis):
         finder.work()
         triad_mimesis.new_fin()
         db.new_fin()
 
-    def mine_cycle(self, changes, db, finder, triad_mimesis):
+    @staticmethod
+    def mine_cycle(changes, db, finder, triad_mimesis):
         finder.work()
         changes.dig_changes()
         triad_mimesis.new_fin()
@@ -235,20 +249,25 @@ class TestTriadChangeFinder(TestQueries):
         self.assertEquals(len(changes_list), changes_count)
         self.assertNewChange(changes_list, new_change)
 
-    def changes_list(self, triad_conn):
+    @staticmethod
+    def changes_list(triad_conn):
         c = triad_conn.cursor()
         c.execute(open("sql/mysql/list_changes.sql").read())
         changes_list = c.fetchall()
         return changes_list
 
     def assertNewChange(self, changes_list, new_change):
-        first_change = changes_list[-1]
-        self.assertSetEqual(set(first_change[:5]), new_change)
+        last_change = changes_list[-1]
+        self.assertSetEqual(set(last_change[:5]), new_change)
 
     @classmethod
     def tearDownClass(cls):
         TestQueries.tearDownClass()
 
+    # SELECT a_id AS a, b_id AS b, c_id AS c, name AS type, first_seen AS since
+    # FROM triad
+    # JOIN triad_type ON triad_type_id = triad_type.id
+    # ORDER BY since;
 
 if __name__ == '__main__':
     unittest.main()

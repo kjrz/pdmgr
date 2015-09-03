@@ -269,6 +269,7 @@ class TriadChangeFinder:
         LOG.info("{} new triads".format(len(new_triads)))
 
         for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
+            LOG.info("digging change for {} ({}, {}, {})".format(to_triad_name, a_id, b_id, c_id))
             from_triad_id = self.dig_change((a_id, b_id, c_id))
             self.db2.write_change(from_triad_id, to_triad_id)
 
@@ -276,17 +277,18 @@ class TriadChangeFinder:
 
     def dig_change(self, nodes):
         prev_triad = self.db2.get_prev_triads(nodes)
-        # TODO: log the finding
         if prev_triad is not None:
+            LOG.info("found prev")  # TODO: level debug
             return prev_triad[0]
 
         followings = self.db.get_triad(nodes, before=self.last_fin)
         classification = TriadClassifier.classify(followings)
-        if classification is not None:
-            first_seen = self.get_first_seen(followings)
-            row_id = self.db2.insert_classified_triad(nodes, classification, first_seen)
-            # TODO: log the finding
-            return row_id
+        if classification is None:
+            raise ValueError("Failed to classify {}".format(followings))
+        first_seen = self.get_first_seen(followings)
+        row_id = self.db2.insert_classified_triad(nodes, classification, first_seen)
+        LOG.info("insert theoretical prev")  # TODO: level debug
+        return row_id
 
     def get_first_seen(self, followings):
         if len(followings) == 0:
