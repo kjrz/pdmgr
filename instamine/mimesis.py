@@ -152,6 +152,10 @@ class Mimesis:
             .filter(User.breed == User.Breed.REGULAR) \
             .all()
 
+    def all_users(self):
+        return self.session.query(User.id) \
+            .all()
+
     def effort_fin(self):
         record = Effort()
         LOG.debug("setting effort fin: {}".format(unicode(record.fin)))
@@ -192,22 +196,22 @@ class MySqlTriadMimesis:
                        (nodes[0], nodes[1], nodes[2], classification, first_seen))
         return self.c.lastrowid
 
-    def write_triads(self, triads, triad_type):
+    def write_triads(self, triads, triad_type, first_seen=datetime.datetime.now()):
         self.c.execute("SELECT id FROM triad_type "
                        "WHERE name = %s", (triad_type,))
         triad_type_id = self.c.fetchone()[0]
 
         LOG.info("appending triad type...")
-        triads = [(a_id, b_id, c_id, triad_type_id) for a_id, b_id, c_id in triads]
+        triads = [(a_id, b_id, c_id, triad_type_id, first_seen) for a_id, b_id, c_id in triads]
 
         LOG.info("splitting in chunks...")
-        triads = MySqlTriadMimesis.chunks(triads, 500000)
+        triads = MySqlTriadMimesis.chunks(triads, 10000)
 
         LOG.info("writing triads to db...")
         triads_added = 0
         for portion in triads:
-            self.c.executemany("INSERT IGNORE INTO triad (a_id, b_id, c_id, triad_type_id) "
-                               "VALUES (%s, %s, %s, %s)", portion)
+            self.c.executemany("INSERT INTO triad (a_id, b_id, c_id, triad_type_id, first_seen) "
+                               "VALUES (%s, %s, %s, %s, %s)", portion)
             triads_added += len(portion)
             LOG.info("{}...".format(triads_added))
             self.conn.commit()
@@ -249,6 +253,9 @@ class MySqlTriadMimesis:
 
     def commit(self):
         self.conn.commit()
+
+    def close(self):
+        self.conn.close()
 
     def __init__(self, conn):
         self.conn = conn

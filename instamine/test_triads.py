@@ -55,11 +55,13 @@ class TestQueries(unittest.TestCase):
         db = TestQueriesMimesis(db_path=conf.get('db', 'path'))
         db.effort_a_min_ago()
         cls.insert_003(db)
+        cls.insert_012(db)
         cls.insert_021C(db)
         cls.insert_021D(db)
         cls.insert_021U(db)
         cls.insert_030C(db)
         cls.insert_030T(db)
+        cls.insert_102(db)
         cls.insert_111D(db)
         cls.insert_111U(db)
         cls.insert_120C(db)
@@ -125,9 +127,33 @@ class TestQueries(unittest.TestCase):
 
     @classmethod
     def insert_030C(cls, db):
-        a = db.add_user(10, 'a_030C')
-        b = db.add_user(11, 'b_030C')
-        c = db.add_user(12, 'c_030C')
+        # a < b < c
+        cls.insert_030C_variant(db.add_user(100, 'a_030C'),
+                                db.add_user(110, 'b_030C'),
+                                db.add_user(120, 'c_030C'), db)
+        # a < c < b
+        cls.insert_030C_variant(db.add_user(101, 'a_030C'),
+                                db.add_user(121, 'b_030C'),
+                                db.add_user(111, 'c_030C'), db)
+        # b < a < c
+        cls.insert_030C_variant(db.add_user(112, 'a_030C'),
+                                db.add_user(102, 'b_030C'),
+                                db.add_user(122, 'c_030C'), db)
+        # b < c < a
+        cls.insert_030C_variant(db.add_user(123, 'a_030C'),
+                                db.add_user(103, 'b_030C'),
+                                db.add_user(113, 'c_030C'), db)
+        # c < a < b
+        cls.insert_030C_variant(db.add_user(114, 'a_030C'),
+                                db.add_user(124, 'b_030C'),
+                                db.add_user(104, 'c_030C'), db)
+        # c < b < a
+        cls.insert_030C_variant(db.add_user(125, 'a_030C'),
+                                db.add_user(115, 'b_030C'),
+                                db.add_user(105, 'c_030C'), db)
+
+    @classmethod
+    def insert_030C_variant(cls, a, b, c, db):
         db.set_regular(a)
         db.set_regular(b)
         db.set_regular(c)
@@ -137,7 +163,20 @@ class TestQueries(unittest.TestCase):
 
     def test_030C(self):
         rows = self.run_select('030C')
-        self.assertListEqual(rows, [(10, 11, 12)])
+        # all_triads = [(100, 110, 120),
+        #               (101, 121, 111),
+        #               (112, 102, 122),
+        #               (123, 103, 113),
+        #               (114, 124, 104),
+        #               (125, 115, 105)]
+        all_triads = [(100, 110, 120),
+                      (101, 121, 111),
+                      (102, 122, 112),
+                      (103, 113, 123),
+                      (104, 114, 124),
+                      (105, 125, 115)]
+        self.assertEquals(len(rows), len(all_triads))
+        self.assertSetEqual(set(rows), set(all_triads))
 
     @classmethod
     def insert_030T(cls, db):
@@ -154,6 +193,17 @@ class TestQueries(unittest.TestCase):
     def test_030T(self):
         rows = self.run_select('030T')
         self.assertListEqual(rows, [(13, 14, 15)])
+
+    @classmethod
+    def insert_102(cls, db):
+        a = db.add_user(50, 'a_003')
+        b = db.add_user(51, 'b_003')
+        c = db.add_user(52, 'c_003')
+        db.set_regular(a)
+        db.set_regular(b)
+        db.set_regular(c)
+        db.set_follows(a, c)
+        db.set_follows(c, a)
 
     @classmethod
     def insert_111D(cls, db):
@@ -206,9 +256,33 @@ class TestQueries(unittest.TestCase):
 
     @classmethod
     def insert_120D(cls, db):
-        a = db.add_user(25, 'a_120D')
-        b = db.add_user(26, 'b_120D')
-        c = db.add_user(27, 'c_120D')
+        # a < b < c
+        cls.insert_120D_variant(db.add_user(3200, 'a_120D'),
+                                db.add_user(3210, 'a_120D'),
+                                db.add_user(3220, 'a_120D'), db)
+        # a < c < b
+        cls.insert_120D_variant(db.add_user(3201, 'a_120D'),
+                                db.add_user(3221, 'a_120D'),
+                                db.add_user(3211, 'a_120D'), db)
+        # b < a < c
+        cls.insert_120D_variant(db.add_user(3212, 'a_120D'),
+                                db.add_user(3202, 'a_120D'),
+                                db.add_user(3222, 'a_120D'), db)
+        # b < c < a
+        cls.insert_120D_variant(db.add_user(3223, 'a_120D'),
+                                db.add_user(3203, 'a_120D'),
+                                db.add_user(3213, 'a_120D'), db)
+        # c < a < b
+        cls.insert_120D_variant(db.add_user(3214, 'a_120D'),
+                                db.add_user(3224, 'a_120D'),
+                                db.add_user(3204, 'a_120D'), db)
+        # c < b < a
+        cls.insert_120D_variant(db.add_user(3225, 'a_120D'),
+                                db.add_user(3215, 'a_120D'),
+                                db.add_user(3205, 'a_120D'), db)
+
+    @classmethod
+    def insert_120D_variant(cls, a, b, c, db):
         db.set_regular(a)
         db.set_regular(b)
         db.set_regular(c)
@@ -219,13 +293,45 @@ class TestQueries(unittest.TestCase):
 
     def test_120D(self):
         rows = self.run_select('120D')
-        self.assertListEqual(rows, [(25, 26, 27)])
+        all_triads = [(3202, 3212, 3222),
+                      (3214, 3224, 3204),
+                      (3215, 3225, 3205),
+                      (3200, 3210, 3220),
+                      (3203, 3223, 3213),
+                      (3201, 3221, 3211)]
+        self.assertEquals(len(rows), len(all_triads))
+        self.assertSetEqual(set(rows), set(all_triads))
+
 
     @classmethod
     def insert_120U(cls, db):
-        a = db.add_user(28, 'a_120U')
-        b = db.add_user(29, 'b_120U')
-        c = db.add_user(30, 'c_120U')
+        # a < b < c
+        cls.insert_120U_variant(db.add_user(2800, 'a_120U'),
+                                db.add_user(2810, 'a_120U'),
+                                db.add_user(2820, 'a_120U'), db)
+        # a < c < b
+        cls.insert_120U_variant(db.add_user(2801, 'a_120U'),
+                                db.add_user(2821, 'a_120U'),
+                                db.add_user(2811, 'a_120U'), db)
+        # b < a < c
+        cls.insert_120U_variant(db.add_user(2812, 'a_120U'),
+                                db.add_user(2802, 'a_120U'),
+                                db.add_user(2822, 'a_120U'), db)
+        # b < c < a
+        cls.insert_120U_variant(db.add_user(2823, 'a_120U'),
+                                db.add_user(2803, 'a_120U'),
+                                db.add_user(2813, 'a_120U'), db)
+        # c < a < b
+        cls.insert_120U_variant(db.add_user(2814, 'a_120U'),
+                                db.add_user(2824, 'a_120U'),
+                                db.add_user(2804, 'a_120U'), db)
+        # c < b < a
+        cls.insert_120U_variant(db.add_user(2825, 'a_120U'),
+                                db.add_user(2815, 'a_120U'),
+                                db.add_user(2805, 'a_120U'), db)
+
+    @classmethod
+    def insert_120U_variant(cls, a, b, c, db):
         db.set_regular(a)
         db.set_regular(b)
         db.set_regular(c)
@@ -236,47 +342,44 @@ class TestQueries(unittest.TestCase):
 
     def test_120U(self):
         rows = self.run_select('120U')
-        self.assertListEqual(rows, [(28, 29, 30)])
+        all_triads = [(2815, 2825, 2805),
+                      (2800, 2810, 2820),
+                      (2803, 2823, 2813),
+                      (2801, 2821, 2811),
+                      (2802, 2812, 2822),
+                      (2814, 2824, 2804)]
+        self.assertEquals(len(rows), len(all_triads))
+        self.assertSetEqual(set(rows), set(all_triads))
 
     @classmethod
     def insert_201(cls, db):
-        # a_id < b_id < c_id
-        a = db.add_user(3100, 'a_201')
-        b = db.add_user(3201, 'b_201')
-        c = db.add_user(3302, 'c_201')
-        db.set_regular(a)
-        db.set_regular(b)
-        db.set_regular(c)
-        db.set_follows(a, b)
-        db.set_follows(b, a)
-        db.set_follows(a, c)
-        db.set_follows(c, a)
-        # b_id < a_id < c_id
-        a = db.add_user(3210, 'a_201')
-        b = db.add_user(3111, 'b_201')
-        c = db.add_user(3312, 'c_201')
-        db.set_regular(a)
-        db.set_regular(b)
-        db.set_regular(c)
-        db.set_follows(a, b)
-        db.set_follows(b, a)
-        db.set_follows(a, c)
-        db.set_follows(c, a)
-        # b_id < c_id < a_id
-        a = db.add_user(3320, 'a_201')
-        b = db.add_user(3121, 'b_201')
-        c = db.add_user(3222, 'c_201')
-        db.set_regular(a)
-        db.set_regular(b)
-        db.set_regular(c)
-        db.set_follows(a, b)
-        db.set_follows(b, a)
-        db.set_follows(a, c)
-        db.set_follows(c, a)
-        # c_id < b_id < a_id
-        a = db.add_user(3330, 'a_201')
-        b = db.add_user(3231, 'b_201')
-        c = db.add_user(3132, 'c_201')
+        # a < b < c
+        cls.insert_201_variant(db.add_user(3100, 'a_201'),
+                               db.add_user(3110, 'a_201'),
+                               db.add_user(3120, 'a_201'), db)
+        # a < c < b
+        cls.insert_201_variant(db.add_user(3101, 'a_201'),
+                               db.add_user(3121, 'a_201'),
+                               db.add_user(3111, 'a_201'), db)
+        # b < a < c
+        cls.insert_201_variant(db.add_user(3112, 'a_201'),
+                               db.add_user(3102, 'a_201'),
+                               db.add_user(3122, 'a_201'), db)
+        # b < c < a
+        cls.insert_201_variant(db.add_user(3123, 'a_201'),
+                               db.add_user(3103, 'a_201'),
+                               db.add_user(3113, 'a_201'), db)
+        # c < a < b
+        cls.insert_201_variant(db.add_user(3114, 'a_201'),
+                               db.add_user(3124, 'a_201'),
+                               db.add_user(3104, 'a_201'), db)
+        # c < b < a
+        cls.insert_201_variant(db.add_user(3125, 'a_201'),
+                               db.add_user(3115, 'a_201'),
+                               db.add_user(3105, 'a_201'), db)
+
+    @classmethod
+    def insert_201_variant(cls, a, b, c, db):
         db.set_regular(a)
         db.set_regular(b)
         db.set_regular(c)
@@ -287,10 +390,14 @@ class TestQueries(unittest.TestCase):
 
     def test_201(self):
         rows = self.run_select('201')
-        self.assertSetEqual(set(rows), {(3100, 3302, 3201),
-                                        (3210, 3312, 3111),
-                                        (3320, 3222, 3121),
-                                        (3330, 3231, 3132)})
+        all_triads = [(3125, 3115, 3105),
+                      (3114, 3124, 3104),
+                      (3123, 3113, 3103),
+                      (3100, 3120, 3110),
+                      (3101, 3121, 3111),
+                      (3112, 3122, 3102)]
+        self.assertEquals(len(rows), len(all_triads))
+        self.assertSetEqual(set(rows), set(all_triads))
 
     @classmethod
     def insert_210(cls, db):

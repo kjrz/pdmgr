@@ -124,7 +124,8 @@ class TriadMiner:
 
     def triadic_people(self):
         LOG.info('checking people...')
-        people = self.db.all_regular()
+        # people = self.db.all_regular()
+        people = self.db.all_users()
         LOG.info('...{} people found'.format(len(people)))
         ans = [x[0] for x in people]
         self.rewind(ans)
@@ -143,6 +144,7 @@ class TriadMiner:
         return len(self.people) > 0
 
     def effort_fin(self):
+        self.db.effort_fin()
         self.db.close()
 
     def stats(self):
@@ -174,6 +176,11 @@ class TriadClassifier:
                 return "102"
             else:
                 return "021C"
+        if followings[0][0] == followings[1][1]:
+            if followings[0][1] == followings[1][0]:
+                return "102"
+            else:
+                return "021C"
         if followings[0][0] == followings[1][0]:
             return "021D"
         if followings[0][1] == followings[1][1]:
@@ -198,67 +205,13 @@ class TriadFinder:
         triads = self.db.dig_triad(triad_type).fetchall()
         LOG.info("found: {}".format(len(triads)))
 
-        LOG.info("set up db connection...")
+        LOG.info("writing triads in chunks...")
         self.db2.write_triads(triads, triad_type)
-
-    @staticmethod
-    def chunks(l, n):
-        for i in xrange(0, len(l), n):
-            yield l[i:i+n]
-
-    # TODO: remove
-    def dig_changes(self):
-        LOG.info("============dig changes=============")
-
-        new_triads = self.db2.get_new_triads()
-        LOG.info("{} new triads".format(len(new_triads)))
-
-        for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
-            prev_triads = self.db2.get_prev_triads(a_id, b_id, c_id)
-            if len(prev_triads) > 1:
-                LOG.error("yo it's {} for {}".format(len(prev_triads), to_triad_id))
-                break
-            if len(prev_triads) > 0:
-                from_triad_id, from_triad_name = prev_triads[0]
-                LOG.info('found triad change: {} -> {}'.format(from_triad_name, to_triad_name))
-                self.db2.write_change(from_triad_id, to_triad_id)
-        self.db2.commit()
-
-    @staticmethod
-    def error_too_many_prev_triads(prev_triads, to_triad):
-        LOG.error("triad {} has {} predecessors"
-                  .format((to_triad.a_id, to_triad.b_id, to_triad.c_id), len(prev_triads)))
-
-    @staticmethod
-    def info_triad_change(from_triad, to_triad):
-        LOG.info("{}{} -> {}{}"
-                 .format(from_triad.triad_type, (from_triad.a_id, from_triad.b_id, from_triad.c_id),
-                         to_triad.triad_type, (to_triad.a_id, to_triad.b_id, to_triad.c_id)))
-
-    def effort_fin(self):
-        time.sleep(1.0)
-        self.db.effort_fin()
-        self.mysql_effort_fin()
-        self.db.commit()
-        self.db.close()
-        LOG.info("================fin=================")
 
     def __init__(self, triad_mimesis):
         self.db = Mimesis(DB_PATH)
         self.db2 = triad_mimesis
         self.types = [x[:-4] for x in os.listdir('sql/triads')]
-
-    @staticmethod
-    def mysql_effort_fin():
-        # conn = mysql.connector.connect(user='instamine',
-        #                                password='instamine',
-        #                                host='localhost',
-        #                                database='instamine')
-        # c = conn.cursor()
-        # c.execute('INSERT INTO effort VALUES()')
-        # conn.commit()
-        pass
-        # TODO: to mimesis
 
 
 class TriadChangeFinder:
@@ -269,16 +222,19 @@ class TriadChangeFinder:
         LOG.info("{} new triads".format(len(new_triads)))
 
         for to_triad_id, a_id, b_id, c_id, to_triad_name in new_triads:
-            LOG.info("digging change for {} ({}, {}, {})".format(to_triad_name, a_id, b_id, c_id))
+            LOG.debug("digging change for {} ({}, {}, {})".format(to_triad_name, a_id, b_id, c_id))
             from_triad_id = self.dig_change((a_id, b_id, c_id))
             self.db2.write_change(from_triad_id, to_triad_id)
+            self.log_progress()
 
         self.db2.commit()
+        LOG.info("============digging done============")
 
     def dig_change(self, nodes):
         prev_triad = self.db2.get_prev_triads(nodes)
         if prev_triad is not None:
-            LOG.info("found prev")  # TODO: level debug
+            LOG.debug("found prev")
+            self.actual_prevs += 1
             return prev_triad[0]
 
         followings = self.db.get_triad(nodes, before=self.last_fin)
@@ -287,7 +243,8 @@ class TriadChangeFinder:
             raise ValueError("Failed to classify {}".format(followings))
         first_seen = self.get_first_seen(followings)
         row_id = self.db2.insert_classified_triad(nodes, classification, first_seen)
-        LOG.info("insert theoretical prev")  # TODO: level debug
+        LOG.debug("insert theoretical prev")
+        self.theoretical_prevs += 1
         return row_id
 
     def get_first_seen(self, followings):
@@ -295,15 +252,27 @@ class TriadChangeFinder:
             return self.db.first_fin() - timedelta(days=7)
         return max([following[2] for following in followings])
 
+    def log_progress(self):
+        if (self.theoretical_prevs + self.actual_prevs) % 5000 == 0:
+            LOG.info("prevs: {} theo, {} act".format(self.theoretical_prevs, self.actual_prevs))
+
+    def effort_fin(self):
+        time.sleep(1)
+        self.db2.effort_fin()
+        self.db2.commit()
+        LOG.info("============ = finito = ============")
+
     def __init__(self, triad_mimesis):
         self.db = Mimesis(DB_PATH)
         self.last_fin = self.db.last_fin()
         self.db2 = triad_mimesis
+        self.theoretical_prevs = 0
+        self.actual_prevs = 0
 
-if __name__ == '__main__':
-    mine = Mine(TriadMiner())
-    mine.start()
-    finder = TriadFinder()
-    finder.work()
-    finder.dig_changes()
-    finder.effort_fin()
+# if __name__ == '__main__':
+#     mine = Mine(TriadMiner())
+#     mine.start()
+#     finder = TriadFinder()
+#     finder.work()
+#     finder.dig_changes()
+#     finder.effort_fin()

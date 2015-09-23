@@ -1,19 +1,18 @@
-DROP TABLE effort;
+DROP TABLE IF EXISTS triad_change;
+DROP TABLE IF EXISTS triad;
+DROP TABLE IF EXISTS effort;
+DROP TABLE IF EXISTS triad_type;
 
 CREATE TABLE effort (
     id INT NOT NULL AUTO_INCREMENT,
     fin TIMESTAMP, PRIMARY KEY (id)
 );
 
-DROP TABLE triad_type;
-
 CREATE TABLE triad_type (
     id SMALLINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(4) NOT NULL,
     PRIMARY KEY (id)
 );
-
-DROP TABLE triad;
 
 CREATE TABLE triad (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -26,8 +25,6 @@ CREATE TABLE triad (
     UNIQUE KEY specific_triad (a_id, b_id, c_id, triad_type_id),
     FOREIGN KEY (triad_type_id) REFERENCES triad_type (id)
 );
-
-DROP TABLE triad_change;
 
 CREATE TABLE triad_change (
     from_triad INT UNSIGNED NOT NULL,

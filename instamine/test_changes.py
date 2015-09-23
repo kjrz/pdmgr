@@ -32,20 +32,21 @@ class TestingChangesMimesis(Mimesis):
 
 
 class TestingMySqlTriadMimesis(MySqlTriadMimesis):
-    def last_triad_id(self):
-        self.c.execute("SELECT count(*) FROM triad")
-        last_triad_id = self.c.fetchone()[0]
-        return last_triad_id
+    # def last_triad_id(self):
+    #     self.c.execute("SELECT count(*) FROM triad")
+    #     last_triad_id = self.c.fetchone()[0]
+    #     return last_triad_id
+    #
+    # def move_triads_in_time(self, last_triad_id):
+    #     fin = self.last_fin() + datetime.timedelta(minutes=1)
+    #     self.c.execute("UPDATE triad SET first_seen = %s WHERE id > %s", (fin, last_triad_id))
+    #     self.conn.commit()
 
-    def move_triads_in_time(self, last_triad_id):
+    def write_triads(self, triads, triad_type, first_seen=datetime.datetime.now()):
+        # last_triad_id = self.last_triad_id()
         fin = self.last_fin() + datetime.timedelta(minutes=1)
-        self.c.execute("UPDATE triad SET first_seen = %s WHERE id > %s", (fin, last_triad_id))
-        self.conn.commit()
-
-    def write_triads(self, triads, triad_type):
-        last_triad_id = self.last_triad_id()
-        MySqlTriadMimesis.write_triads(self, triads, triad_type)
-        self.move_triads_in_time(last_triad_id)
+        MySqlTriadMimesis.write_triads(self, triads, triad_type, fin)
+        # self.move_triads_in_time(last_triad_id)
 
     def last_fin(self):
         self.c.execute("SELECT max(fin) FROM effort")
@@ -66,18 +67,23 @@ class TestClassifier(unittest.TestCase):
 
     def test_102(self):
         self.assertEqual(TriadClassifier.classify([('a', 'b'), ('b', 'a')]), '102')
+        self.assertEqual(TriadClassifier.classify([('b', 'a'), ('a', 'b')]), '102')
 
     def test_021C(self):
         self.assertEqual(TriadClassifier.classify([('a', 'b'), ('b', 'c')]), '021C')
+        self.assertEqual(TriadClassifier.classify([('b', 'c'), ('a', 'b')]), '021C')
 
     def test_021D(self):
         self.assertEqual(TriadClassifier.classify([('a', 'b'), ('a', 'c')]), '021D')
+        self.assertEqual(TriadClassifier.classify([('a', 'c'), ('a', 'b')]), '021D')
 
     def test_021U(self):
         self.assertEqual(TriadClassifier.classify([('a', 'b'), ('c', 'b')]), '021U')
+        self.assertEqual(TriadClassifier.classify([('c', 'b'), ('a', 'b')]), '021U')
 
     def test_None(self):
         self.assertEqual(TriadClassifier.classify([('a', 'b'), ('c', 'd')]), None)
+        self.assertEqual(TriadClassifier.classify([('c', 'd'), ('a', 'b')]), None)
         self.assertEqual(TriadClassifier.classify([('a', 'a'), ('a', 'a'), ('a', 'a')]), None)
 
 
@@ -200,6 +206,13 @@ class TestTriadChangeFinder(TestQueries):
     def test_030T(self):
         # self.add_followings(db, [(15, 13), (14, 13), (15, 14)])
         pass
+
+    # TODO:
+    # take latest number_ten.db
+    # init new MySQL db
+    # run the finder, get all triads in it
+    # run instamine
+    # run the finder again
 
     def test_111D(self):
         pass
