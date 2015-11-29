@@ -136,3 +136,5 @@ class Session:
         self.new_hour()
         self.ammo = 0
         self.reload()
+        self.hour_shots = 0
+        self.hour_start = datetime.now()

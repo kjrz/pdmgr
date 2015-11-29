@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from instagram import InstagramAPIError
 
-from mimesis import Mimesis, UserStats, User
+from mimesis import Mimesis, UserStats, User, Breed
 from instapi import Session, UserPrivateException
 
 
@@ -92,7 +92,7 @@ class Mine:
 
     def attend_to(self, follower):
         breed = self.check_breed(follower)
-        if breed is not User.Breed.REGULAR:
+        if breed is not Breed.REGULAR:
             return
         followees = self.api.followees(follower.id)
 
@@ -112,7 +112,7 @@ class Mine:
         except UserPrivateException:
             LOG.info("<private>")
             self.db.set_private(follower)
-            return User.Breed.PRIVATE
+            return Breed.PRIVATE
 
         followed_by = info.followers_count()
         self.db.set_followers(follower, followed_by)
@@ -125,20 +125,20 @@ class Mine:
         if followed_by >= CELEB_THRESHOLD:
             LOG.info("<celeb>")
             self.db.set_celeb(follower)
-            return User.Breed.CELEB
+            return Breed.CELEB
 
         if follows >= MANIAC_THRESHOLD:
             LOG.info("<maniac>")
             self.db.set_maniac(follower)
-            return User.Breed.MANIAC
+            return Breed.MANIAC
 
         if follows <= INACTIVE_THRESHOLD:
             LOG.info("<inactive>")
             self.db.set_inactive(follower)
-            return User.Breed.INACTIVE
+            return Breed.INACTIVE
 
         self.db.set_regular(follower)
-        return User.Breed.REGULAR
+        return Breed.REGULAR
 
     def relax(self):
         stop = self.round_start + timedelta(0, CYCLE)
@@ -188,6 +188,7 @@ class Mine:
         self.users_not_empty = False
         self.check_stats()
         self.queue = UsersToAttendTo(self.db)
+        self.round_start = 0
 
 
 Mine().work()

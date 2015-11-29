@@ -9,7 +9,7 @@ mine.start()
 
 triad_mimesis = MySqlTriadMimesis(mysql.connector.connect(user='instamine',
                                   password='instamine',
-                                  host='localhost',
+                                  host='127.0.0.1',
                                   database='instamine'))
 finder = TriadFinder(triad_mimesis)
 finder.work()

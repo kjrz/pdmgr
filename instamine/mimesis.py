@@ -22,19 +22,24 @@ class Following(Base):
     first_seen = Column(DateTime, default=datetime.datetime.now())
 
 
-class User(Base):
-    class Breed(object):
-        UNKNOWN = 'unknown'
-        REGULAR = 'regular'
-        PRIVATE = 'private'
-        CELEB = 'celeb'
-        MANIAC = 'maniac'
-        INACTIVE = 'inactive'
+class Breed(Base):
+    UNKNOWN = 'unknown'
+    REGULAR = 'regular'
+    PRIVATE = 'private'
+    CELEB = 'celeb'
+    MANIAC = 'maniac'
+    INACTIVE = 'inactive'
 
+    __tablename__ = 'breed'
+    id = Column(Integer, nullable=False, primary_key=True)
+    name = Column(String(8), nullable=False)
+
+
+class User(Base):
     __tablename__ = 'user'
     id = Column(Integer, nullable=False, primary_key=True)
     username = Column(String(30), nullable=False)
-    breed = Column(String(10), default=Breed.UNKNOWN)
+    breed = Column(Integer, ForeignKey('breed.id'), default=1)
     followees = Column(Integer, nullable=True)
     follows = relationship(
         'User', secondary='following',
@@ -72,30 +77,25 @@ class Mimesis:
         self.session.add(user)
         return user
 
-    @staticmethod
-    def set_regular(user):
+    def set_regular(self, user):
         LOG.debug("setting regular {}".format(user))
-        user.breed = User.Breed.REGULAR
+        user.breed = self.breed_map[Breed.REGULAR]
 
-    @staticmethod
-    def set_private(user):
+    def set_private(self, user):
         LOG.debug("setting private {}".format(user))
-        user.breed = User.Breed.PRIVATE
+        user.breed = self.breed_map[Breed.PRIVATE]
 
-    @staticmethod
-    def set_celeb(user):
+    def set_celeb(self, user):
         LOG.debug('setting celeb {}'.format(user))
-        user.breed = User.Breed.CELEB
+        user.breed = self.breed_map[Breed.CELEB]
 
-    @staticmethod
-    def set_maniac(user):
+    def set_maniac(self, user):
         LOG.debug('setting maniac {}'.format(user))
-        user.breed = User.Breed.MANIAC
+        user.breed = self.breed_map[Breed.MANIAC]
 
-    @staticmethod
-    def set_inactive(user):
+    def set_inactive(self, user):
         LOG.debug('setting inactive {}'.format(user))
-        user.breed = User.Breed.INACTIVE
+        user.breed = self.breed_map[Breed.MANIAC]
 
     @staticmethod
     def set_followers(user, count):
@@ -131,7 +131,8 @@ class Mimesis:
             group_by(Following.followee_id). \
             subquery()
         return self.session.query(User, stmt.c.followers_count) \
-            .filter(User.breed == User.Breed.UNKNOWN) \
+            .join(Breed) \
+            .filter(Breed.name == Breed.UNKNOWN) \
             .outerjoin(stmt, User.id == stmt.c.followee_id) \
             .order_by(stmt.c.followers_count.desc()) \
             .limit(n) \
@@ -148,8 +149,8 @@ class Mimesis:
             all()
 
     def all_regular(self):
-        return self.session.query(User.id) \
-            .filter(User.breed == User.Breed.REGULAR) \
+        return self.session.query(User.id).join(Breed) \
+            .filter(Breed.name == Breed.REGULAR) \
             .all()
 
     def all_users(self):
@@ -182,11 +183,35 @@ class Mimesis:
         if not engine.has_table('user'):
             Base.metadata.create_all(engine)
 
+    def init_breed(self):
+        breed_count, = self.session.query(func.count(Breed.id)).first()
+        LOG.info('breed count: {}'.format(breed_count))
+        breed_map = {}
+        if breed_count != 0:
+            for breed in self.session.query(Breed):
+                breed_map[breed.name] = breed.id
+            return breed_map
+        LOG.info('init breed')
+        breeds = [
+            Breed.UNKNOWN,
+            Breed.REGULAR,
+            Breed.PRIVATE,
+            Breed.CELEB,
+            Breed.MANIAC,
+            Breed.INACTIVE
+        ]
+        for i in range(len(breeds)):
+            self.session.add(Breed(id=i+1, name=breeds[i]))
+            breed_map[breeds[i]] = i + 1
+        LOG.info('breed map: {}'.format(breed_map))
+        return breed_map
+
     def __init__(self, db_path=conf.get('db', 'path')):
         engine = create_engine('sqlite:///' + db_path)
         self.init_db(engine)
         session = sessionmaker(bind=engine)
         self.session = session()
+        self.breed_map = self.init_breed()
 
 
 class MySqlTriadMimesis:
@@ -270,28 +295,28 @@ class UserStats:
         return self.session.query(Following).count()
 
     def privates(self):
-        return self.session.query(User) \
-            .filter(User.breed == User.Breed.PRIVATE) \
+        return self.session.query(User).join(Breed) \
+            .filter(Breed.name == Breed.PRIVATE) \
             .count()
 
     def celebs(self):
-        return self.session.query(User) \
-            .filter(User.breed == User.Breed.CELEB) \
+        return self.session.query(User).join(Breed) \
+            .filter(Breed.name == Breed.CELEB) \
             .count()
 
     def maniacs(self):
-        return self.session.query(User) \
-            .filter(User.breed == User.Breed.MANIAC) \
+        return self.session.query(User).join(Breed) \
+            .filter(Breed.name == Breed.MANIAC) \
             .count()
 
     def inactive(self):
-        return self.session.query(User) \
-            .filter(User.breed == User.Breed.INACTIVE) \
+        return self.session.query(User).join(Breed) \
+            .filter(Breed.name == Breed.INACTIVE) \
             .count()
 
     def queued(self):
-        return self.session.query(User) \
-            .filter(User.breed == User.Breed.UNKNOWN) \
+        return self.session.query(User).join(Breed) \
+            .filter(Breed.name == Breed.UNKNOWN) \
             .count()
 
     def log(self):
@@ -324,16 +349,3 @@ class UserStats:
         engine = create_engine('sqlite:///' + db_path)
         session = sessionmaker(bind=engine)
         self.session = session()
-
-
-# class TriadStats:
-#     def triad_count(self):
-#         return self.session.query(Triad).count()
-#
-#     def close(self):
-#         self.session.close()
-#
-#     def __init__(self, db_path):
-#         engine = create_engine('sqlite:///' + db_path)
-#         session = sessionmaker(bind=engine)
-#         self.session = session()

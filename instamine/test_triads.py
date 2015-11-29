@@ -302,7 +302,6 @@ class TestQueries(unittest.TestCase):
         self.assertEquals(len(rows), len(all_triads))
         self.assertSetEqual(set(rows), set(all_triads))
 
-
     @classmethod
     def insert_120U(cls, db):
         # a < b < c

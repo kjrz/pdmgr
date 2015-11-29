@@ -84,6 +84,7 @@ class Mine:
     def __init__(self, miner):
         LOG.info("====================================")
         self.miner = miner
+        self.round_start = 0
 
 
 class TriadMiner:
