@@ -18,7 +18,8 @@ conf.read('../instamine.conf')
 
 DB_PATH = conf.get('db', 'path')
 
-CYCLE = 3600 * conf.getint('algorithm', 'clip') / conf.getint('api', 'hour_max')
+CLIP = conf.getint('algorithm', 'clip')
+CYCLE = 3600 * CLIP / (conf.getint('api', 'hour_max') - CLIP)
 
 USER_AMMO = conf.getint('algorithm', 'user_ammo')
 TIC = conf.getint('algorithm', 'tic')
