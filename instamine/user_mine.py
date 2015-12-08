@@ -4,8 +4,7 @@ from logging.handlers import RotatingFileHandler
 import time
 from datetime import datetime, timedelta
 
-from instagram import InstagramAPIError
-
+from instagram import InstagramAPIError, InstagramClientError
 from mimesis import Mimesis, UserStats, User, Breed
 from instapi import Session, UserPrivateException
 
@@ -73,6 +72,9 @@ class Mine:
             self.dig()
         except InstagramAPIError as e:
             LOG.warn("Instagram API exception")
+            LOG.exception(e)
+        except InstagramClientError as e:
+            LOG.warn("Instagram client error")
             LOG.exception(e)
         except IndexError as e:
             LOG.warn(e)
