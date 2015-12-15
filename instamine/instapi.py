@@ -1,6 +1,7 @@
 import logging
 import ConfigParser
 from datetime import datetime
+from time import sleep
 
 from instagram.client import InstagramAPI
 from instagram.bind import InstagramAPIError
@@ -106,6 +107,7 @@ class Session:
                 raise e
 
     def shoot(self):
+        sleep(0.5)
         if self.hour_shots > HOUR_MAX:
             raise OneHourApiCallsLimitReached
         self.ammo -= 1
