@@ -40,7 +40,7 @@ class Mine:
         while self.miner.got_work_to_do():
             self.work()
             self.stop()
-        self.miner.effort_fin()
+        # self.miner.effort_fin()
 
     def work(self):
         try:
@@ -147,6 +147,7 @@ class TriadMiner:
 
     def effort_fin(self):
         self.db.effort_fin()
+        self.db.commit()
         self.db.close()
 
     def stats(self):
