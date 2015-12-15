@@ -19,7 +19,7 @@ class Following(Base):
     __tablename__ = 'following'
     follower_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
     followee_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
-    first_seen = Column(DateTime, default=datetime.datetime.now())
+    first_seen = Column(DateTime, default=func.now())
 
 
 class Breed(Base):
@@ -57,7 +57,7 @@ class User(Base):
 class Effort(Base):
     __tablename__ = 'effort'
     id = Column(Integer, primary_key=True)
-    fin = Column(DateTime, default=datetime.datetime.now())
+    fin = Column(DateTime, default=func.now())
 
 
 class Mimesis:
