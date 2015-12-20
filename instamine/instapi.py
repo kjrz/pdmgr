@@ -74,18 +74,18 @@ class Session:
 
     def info(self, id):
         LOG.debug("issue user info: {}".format(id))
-        response = self.risk_private(self.api.user, id)
+        response = self.risk_private(self.api.user, user_id=id)
         self.shoot()
         return UserInfo(response)
 
     def followees(self, id):
         LOG.debug("issue followees: {}".format(id))
-        response = self.get_paginated(self.api.user_follows, id)
+        response = self.get_paginated(self.api.user_follows, user_id=id)
         LOG.debug("{} follows {} users".format(id, len(response)))
         return Followees(response)
 
-    def get_paginated(self, request, arg):
-        results, next = self.risk_private(request, arg)
+    def get_paginated(self, request, **args):
+        results, next = self.risk_private(request, **args)
         LOG.debug("paginated 1st shot: {}".format(len(results)))
         self.shoot()
         while next:
@@ -95,19 +95,33 @@ class Session:
             results.extend(more_results)
         return results
 
+    def get_attendances(self, id, until):
+        LOG.debug("issue user recent media: {}".format(id))
+        attendances = []
+        recent_media, next = self.risk_private(self.api.user_recent_media, user_id=id)
+        for media in recent_media:
+            created_time = vars(media)["created_time"]
+            if created_time < until:
+                LOG.debug("break at {}".format(created_time))
+                break
+            if "location" not in vars(media):
+                continue
+            attendances.append((created_time, vars(media)['location']))
+        return attendances
+
     @staticmethod
-    def risk_private(request, arg):
+    def risk_private(request, **args):
         try:
-            return request(arg)
+            return request(**args)
         except InstagramAPIError as e:
-            LOG.debug("error for user {}".format(arg))
+            LOG.debug("error for user {}".format(args))
             if e.status_code == 400:
-                raise UserPrivateException(arg)
+                raise UserPrivateException(args)
             else:
                 raise e
 
     def shoot(self):
-        sleep(0.5)
+        sleep(0.25)
         if self.hour_shots > HOUR_MAX:
             raise OneHourApiCallsLimitReached
         self.ammo -= 1

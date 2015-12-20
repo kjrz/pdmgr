@@ -2,7 +2,7 @@ import ConfigParser
 import logging
 import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func, create_engine, Float
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -58,6 +58,22 @@ class Effort(Base):
     __tablename__ = 'effort'
     id = Column(Integer, primary_key=True)
     fin = Column(DateTime, default=func.now())
+
+
+class Location(Base):
+    __tablename__ = 'location'
+    id = Column(Integer, primary_key=True, nullable=False)
+    name = Column(String, nullable=False)
+    latitude = Column(Float)
+    longitude = Column(Float)
+
+
+class Attendance(Base):
+    __tablename__ = 'attendance'
+    id = Column(Integer, primary_key=True, nullable=False)
+    user = Column(Integer, ForeignKey('user.id'), nullable=False)
+    location = Column(Integer, ForeignKey('location.id'), nullable=False)
+    time_seen = Column(DateTime, default=func.now(), nullable=False)
 
 
 class Mimesis:
@@ -154,8 +170,29 @@ class Mimesis:
             .all()
 
     def all_users(self):
-        return self.session.query(User.id) \
-            .all()
+        return self.session.query(User.id).all()
+
+    def get_active(self):
+        last_fin = self.last_fin()
+        followings = self.session.query(Following).filter(Following.first_seen > last_fin)
+        active = set()
+        for following in followings:
+            active.add(following.follower_id)
+            active.add(following.followee_id)
+        return active
+
+    def add_location(self, id, name, latitude=None, longitude=None):
+        loc = self.session.query(Location).filter(Location.id == id).first()
+        if loc is None:
+            LOG.debug("new location: {}".format(name))
+            loc = Location(id=id, name=name, latitude=latitude, longitude=longitude)
+            self.session.add(loc)
+        return loc
+
+    def add_attendance(self, user_id, location_id, time_seen):
+        attendance = Attendance(user=user_id, location=location_id, time_seen=time_seen)
+        self.session.add(attendance)
+        return attendance
 
     def effort_fin(self):
         record = Effort()
@@ -349,3 +386,6 @@ class UserStats:
         engine = create_engine('sqlite:///' + db_path)
         session = sessionmaker(bind=engine)
         self.session = session()
+
+# mimesis = Mimesis(db_path=conf.get('test', 'db'))
+# mimesis.session.add(Location(name='somewhere'))
