@@ -76,6 +76,18 @@ class Attendance(Base):
     time_seen = Column(DateTime, default=func.now(), nullable=False)
 
 
+class Meeting(Base):
+    __tablename__ = 'meeting'
+    id = Column(Integer, primary_key=True, nullable=False)
+    follower_id = Column(Integer, ForeignKey('user.id'))
+    followee_id = Column(Integer, ForeignKey('user.id'))
+    location_id = Column(Integer, ForeignKey('location.id'), nullable=False)
+
+    follower = relationship("User", foreign_keys=[follower_id])
+    followee = relationship("User", foreign_keys=[followee_id])
+    location = relationship("Location", foreign_keys=[location_id])
+
+
 class Mimesis:
     def user_known(self, id):
         return self.session.query(User) \
@@ -172,9 +184,10 @@ class Mimesis:
     def all_users(self):
         return self.session.query(User.id).all()
 
-    def get_active(self):
-        last_fin = self.last_fin()
-        followings = self.session.query(Following).filter(Following.first_seen > last_fin)
+    def get_active(self, until=None):
+        if not until:
+            until = self.last_fin()
+        followings = self.session.query(Following).filter(Following.first_seen > until)
         active = set()
         for following in followings:
             active.add(following.follower_id)
@@ -184,7 +197,7 @@ class Mimesis:
     def add_location(self, id, name, latitude=None, longitude=None):
         loc = self.session.query(Location).filter(Location.id == id).first()
         if loc is None:
-            LOG.debug("new location: {}".format(name))
+            LOG.debug("new location: {}".format(name.encode('utf8')))
             loc = Location(id=id, name=name, latitude=latitude, longitude=longitude)
             self.session.add(loc)
         return loc
@@ -193,6 +206,23 @@ class Mimesis:
         attendance = Attendance(user=user_id, location=location_id, time_seen=time_seen)
         self.session.add(attendance)
         return attendance
+
+    def get_followings(self, until):
+        return self.session.query(Following.follower_id, Following.followee_id) \
+            .filter(Following.first_seen > until) \
+            .all()
+
+    def get_attendances(self, user_id, until):
+        return self.session.query(Attendance.location) \
+            .filter(Attendance.user == user_id) \
+            .filter(Attendance.time_seen > until) \
+            .all()
+
+    def add_meeting(self, follower_id, followee_id, location_id):
+        self.session.add(Meeting(follower_id=follower_id, followee_id=followee_id, location_id=location_id))
+
+    def get_meetings_info(self):
+        return self.session.execute(open("sql/tass/meetings.sql").read()).fetchall()
 
     def effort_fin(self):
         record = Effort()

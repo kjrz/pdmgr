@@ -2,17 +2,20 @@ import ConfigParser
 import datetime
 import unittest
 from hamcrest import assert_that, equal_to, is_, has_items
+
 import instapi
-from trading_places import LonelyHeartsMiner
-from mimesis import Mimesis, Location, Effort, Following, User, Attendance
+from mimesis import Mimesis, Location, Effort, Following, User, Attendance, Meeting
+from trading_places import LonelyHeartsMiner, HeartsClubFinder
 
 conf = ConfigParser.RawConfigParser()
 conf.read('../instamine.conf')
 
+TEST_DB_PATH = conf.get('test', 'db')
+
 
 class TestTassMimesis(unittest.TestCase):
     def setUp(self):
-        self.mimesis = Mimesis(db_path=conf.get('test', 'db'))
+        self.mimesis = Mimesis(db_path=TEST_DB_PATH)
         self.clear_db()
         self.add_users()
         self.add_effort()
@@ -106,6 +109,7 @@ class TestAttendanceMiner(unittest.TestCase):
     def setUpClass(cls):
         cls.api = instapi.Session()
         cls.attendant_id = cls.api.search(conf.get('test', 'user')).id
+        cls.private_id = conf.get('test', 'private')
         cls.until = datetime.datetime.strptime(conf.get('test', 'recently'), '%Y-%m-%d %H:%M:%S')
 
     def setUp(self):
@@ -116,7 +120,7 @@ class TestAttendanceMiner(unittest.TestCase):
         db.close()
 
     def get_db(self):
-        return Mimesis(conf.get('test', 'db'))
+        return Mimesis(TEST_DB_PATH)
 
     def clear_db(self, db):
         db.session.query(User).delete()
@@ -136,25 +140,134 @@ class TestAttendanceMiner(unittest.TestCase):
         db.close()
 
         # when
-        miner = LonelyHeartsMiner(conf.get('test', 'db'), None)
+        miner = LonelyHeartsMiner(TEST_DB_PATH, None)
 
         # then
         assert_that(miner.lonely_people, has_items(1, 2))
 
     def test_attend_to_user(self):
-        # given: user in queue
-        miner = LonelyHeartsMiner(conf.get('test', 'db'), self.until)
+        # given
+        miner = LonelyHeartsMiner(TEST_DB_PATH, self.until)
 
-        # when: attend to
+        # when
         miner.attend_to(self.attendant_id)
         miner.close()
 
-        # then: locations and attendances in db
+        # then
         db = self.get_db()
         locations = db.session.query(Location).all()
         attendances = db.session.query(Attendance).all()
-        assert_that(len(locations), is_(equal_to(conf.getint('test', 'locations'))))
-        assert_that(len(attendances), is_(equal_to(conf.getint('test', 'attendances'))))
+        locations_count = conf.getint('test', 'locations')
+        attendances_count = conf.getint('test', 'attendances')
+        assert_that(len(locations), is_(equal_to(locations_count)))
+        assert_that(len(attendances), is_(equal_to(attendances_count)))
+        db.close()
+
+    def test_omit_and_mark_private(self):
+        # given
+        miner = LonelyHeartsMiner(TEST_DB_PATH, self.until)
+        miner.db.session.add(User(id=self.private_id, username='name'))
+
+        # when
+        miner.attend_to(self.private_id)
+        miner.db.commit()
+
+        # then
+        breed = miner.db.user_known(self.private_id).breed
+        assert_that(breed, is_(equal_to(3)))
+
+    def sth(self):
+        pass
+
+
+class TestHeartsClubsFinder(unittest.TestCase):
+    def setUp(self):
+        db = self.get_db()
+        self.clear_db(db)
+        self.until = datetime.datetime.now() - datetime.timedelta(minutes=70)
+        db.session.add(Effort(fin=self.until))
+        self.init_test_data(db)
+        db.commit()
+        db.close()
+
+    def get_db(self):
+        return Mimesis(TEST_DB_PATH)
+
+    def clear_db(self, db):
+        db.session.query(User).delete()
+        db.session.query(Following).delete()
+        db.session.query(Effort).delete()
+        db.session.query(Location).delete()
+        db.session.query(Attendance).delete()
+        db.session.query(Meeting).delete()
+
+    def init_test_data(self, db):
+        one = db.add_user(1, 'one')
+        two = db.add_user(2, 'two')
+        three = db.add_user(3, 'three')
+        db.set_follows(one, two)
+        db.add_location(1, 'somewhere')
+        db.add_attendance(1, 1, (self.until + datetime.timedelta(minutes=10)))
+        db.add_attendance(2, 1, (self.until + datetime.timedelta(minutes=15)))
+        db.set_follows(one, three)
+        db.add_location(2, 'somewhere else')
+        db.add_attendance(1, 2, (self.until + datetime.timedelta(minutes=10)))
+        db.add_attendance(3, 2, (self.until - datetime.timedelta(minutes=15)))
+        db.commit()
+
+    def tearDown(self):
+        db = self.get_db()
+        db.commit()
+        db.close()
+
+    def test_user_attendances(self):
+        # given
+        db = Mimesis(TEST_DB_PATH)
+
+        # when
+        attendances = db.get_attendances(1, self.until)
+
+        # then
+        assert_that(len(attendances), is_(equal_to(2)))
+        db.close()
+
+    def test_see_the_meeting(self):
+        # given
+        finder = HeartsClubFinder(TEST_DB_PATH, self.until)
+
+        # when:
+        finder.dig_meeting(1, 2)
+
+        # then:
+        meetings = finder.db.session.query(Meeting).all()
+        assert_that(len(meetings), is_(1))
+        assert_that(meetings[0].follower_id, is_(1))
+        assert_that(meetings[0].followee_id, is_(2))
+        assert_that(meetings[0].location, is_(1))
+        finder.close()
+
+    def test_see_no_meeting(self):
+        # given
+        finder = HeartsClubFinder(TEST_DB_PATH, self.until)
+
+        # when:
+        finder.dig_meeting(1, 3)
+
+        # then:
+        meetings = finder.db.session.query(Meeting).all()
+        assert_that(len(meetings), is_(0))
+        finder.close()
+
+    def test_recent_followings(self):
+        # given
+        db = Mimesis(TEST_DB_PATH)
+
+        # when
+        recent = db.get_followings(self.until)
+
+        # then
+        assert_that(len(recent), is_(2))
+        assert_that(recent, has_items((1, 2), (1, 3)))
 
     def sth(self):
         pass

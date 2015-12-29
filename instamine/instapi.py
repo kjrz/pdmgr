@@ -96,9 +96,10 @@ class Session:
         return results
 
     def get_attendances(self, id, until):
-        LOG.debug("issue user recent media: {}".format(id))
+        LOG.debug("get user recent media: {}".format(id))
         attendances = []
         recent_media, next = self.risk_private(self.api.user_recent_media, user_id=id)
+        self.shoot()
         for media in recent_media:
             created_time = vars(media)["created_time"]
             if created_time < until:
